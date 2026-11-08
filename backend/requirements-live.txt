@@ -1,0 +1,5 @@
+# Opsional: data satelit NYATA (Sentinel-2 via Planetary Computer + Hansen GFC)
+-r requirements.txt
+pystac-client>=0.7
+planetary-computer>=1.0
+rasterio>=1.3

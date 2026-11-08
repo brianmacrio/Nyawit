@@ -1,0 +1,9 @@
+# Opsional: Segment Anything (Meta AI) untuk AI penggambar batas.
+# 1) pip install -r requirements-sam.txt   (torch CPU ~200 MB)
+# 2) unduh checkpoint ViT-B (375 MB):
+#    https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
+#    simpan ke backend/models/sam_vit_b_01ec64.pth
+-r requirements.txt
+torch>=2.1
+torchvision>=0.16
+segment-anything>=1.0
