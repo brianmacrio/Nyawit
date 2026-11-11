@@ -18,7 +18,8 @@ from sqlalchemy import func, select
 from .config import APP_VERSION, BASE_DIR, CORS_ORIGINS
 from .db import SessionLocal, init_db
 from .models import Plot
-from .routers import ai, dashboard, meta, plots, supply
+from .routers import ai, auth, dashboard, meta, plots, shipments, supply, verification
+from .security import SecurityMiddleware
 
 
 @asynccontextmanager
@@ -26,10 +27,11 @@ async def lifespan(_: FastAPI):
     init_db()
     with SessionLocal() as db:
         empty = (db.scalar(select(func.count(Plot.id))) or 0) == 0
-    if empty:
-        from .seed import seed
+    from .seed import ensure_demo_users, seed
 
+    if empty:
         seed(reset=False)
+    ensure_demo_users()
     yield
 
 
@@ -41,9 +43,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.add_middleware(GZipMiddleware, minimum_size=1024)  # hemat bandwidth (Green IT)
-app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(SecurityMiddleware)  # header keamanan + CSRF
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_credentials=True,
+                   allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type", "X-Requested-With"])
 
-for r in (meta.router, plots.router, ai.router, supply.router, dashboard.router):
+for r in (meta.router, auth.router, plots.router, ai.router, supply.router, dashboard.router, verification.router,
+          shipments.router):
     app.include_router(r)
 
 # Jika frontend sudah di-build (npm run build), sajikan dari sini agar cukup 1 server.

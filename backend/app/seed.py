@@ -16,9 +16,11 @@ from datetime import datetime, timedelta
 import numpy as np
 from sqlalchemy import select
 
-from .config import DATA_DIR
+from .config import DATA_DIR, DEMO_ACCOUNTS, DEMO_PASSWORD
 from .db import Base, SessionLocal, engine, init_db
-from .models import Collector, Cooperative, Delivery, Farmer, Mill, Plot, Transaction
+from .models import Appeal, Collector, Cooperative, Delivery, Farmer, Inspection, Mill, Plot, Transaction, User
+from .security import hash_password
+from .services import audit
 from .services import kawasan as kawasan_svc
 from .services import plots as plot_svc
 from .services import supply as supply_svc
@@ -45,6 +47,35 @@ FIRST = ["Budi", "Siti", "Sutrisno", "Joko", "Rina", "Darmawan", "Wahyuni", "Agu
          "Ratna", "Andi", "Nurhayati", "Herman", "Lina", "Yusuf", "Marlina", "Riduan", "Suryani"]
 LAST = ["Santoso", "Aminah", "Wibowo", "Susilo", "Wati", "Lubis", "Harahap", "Pratama", "Rahayu", "Siregar", "Hidayat",
         "Nasution", "Saputra", "Simanjuntak", "Purba", "Hasibuan", "Tanjung", "Ginting", "Sitompul", "Rangkuti"]
+
+# bukti lahan, nomor, status STDB, saksi kedua (fiktif)
+HERO_LAND = {
+    "Budi Santoso": ("sertifikat", "SHM No. 01234/Sungai Harapan", "ada", "Siti Aminah (tetangga timur)"),
+    "Siti Aminah": ("surat_desa", "SKGR 141/SH/2019", "proses", "Budi Santoso (tetangga barat)"),
+    "Sutrisno Wibowo": ("sertifikat", "SHM No. 00877/Sungai Harapan", "ada", "Agus Pratama (tetangga selatan)"),
+    "Joko Susilo": ("pernyataan", None, "belum", None),
+    "Rina Wati": ("surat_desa", "SKT 22/2014", "belum", None),
+    "Darmawan Lubis": ("surat_desa", "SKGR 077/SH/2012", "proses", "Wahyuni Harahap (tetangga timur)"),
+    "Wahyuni Harahap": ("surat_desa", "SKGR 102/SH/2010", "belum", "Darmawan Lubis (tetangga barat)"),
+    "Agus Pratama": ("sertifikat", "SHM No. 00412/Sungai Harapan", "ada", "Sutrisno Wibowo (tetangga utara)"),
+    "Sri Rahayu": ("pernyataan", None, "proses", "Hasan Siregar (tetangga timur)"),
+    "Hasan Siregar": ("sertifikat", "SHM No. 00203/Sungai Harapan", "ada", "Sri Rahayu (tetangga barat)"),
+}
+SIDES_DEMO = [
+    {"utara": {"jenis": "parit", "tetangga": None}, "timur": {"jenis": "kebun", "tetangga": "Siti Aminah"},
+     "selatan": {"jenis": "jalan", "tetangga": None}, "barat": {"jenis": "kebun", "tetangga": None}},
+    {"utara": {"jenis": "jalan", "tetangga": None}, "timur": {"jenis": "kebun", "tetangga": None},
+     "selatan": {"jenis": "parit", "tetangga": None}, "barat": {"jenis": "kebun", "tetangga": None}},
+]
+DEMO_USERS = [
+    # username, nama tampilan, peran, organisasi, nama pengepul terkait
+    ("koperasi", "Rahmat Hidayat", "koperasi", "KUD Tani Makmur (demo)", None),
+    ("pengepul", "UD Tani Jaya", "pengepul", "UD Tani Jaya", "UD Tani Jaya"),
+    ("sinarjaya", "UD Sinar Jaya", "pengepul", "UD Sinar Jaya", "UD Sinar Jaya"),
+    ("pabrik", "Dewi Lestari", "pabrik", "PKS Sejahtera (demo)", None),
+    ("verifikator", "Andi Saputra", "verifikator", "Lembaga verifikasi independen (demo)", None),
+    ("admin", "Admin PasporKebun", "admin", "PasporKebun", None),
+]
 
 HERO = [
     # nama, desa, (dx_m, dy_m), (w, h), skenario, tahun tanam diklaim, saksi
@@ -134,11 +165,34 @@ def seed(reset: bool = False) -> dict:
         def add_plot(name, village, geom, scenario, declared, witness, method):
             f = farmer(name, village)
             n = len(plots) + 1
+            created = now - timedelta(days=int(rng.integers(20, 160)))
             p = Plot(code=plot_svc.make_code(n), farmer_id=f.id, label=f"Kebun blok {'ABCDEFG'[int(rng.integers(0, 7))]}", geometry=geom, area_ha=0,
                      centroid_lat=0, centroid_lng=0, planting_year_declared=declared, witness=witness,
                      boundary_confirmed=witness is not None, delineation_method=method, scenario=scenario,
-                     created_at=now - timedelta(days=int(rng.integers(20, 160))))
+                     created_at=created)
             plot_svc.set_geometry(p, geom)
+            wits = [{"name": witness, "relation": "ketua kelompok tani" if "Poktan" in witness else "saksi",
+                     "at": created.isoformat(timespec="seconds")}] if witness else []
+            if name in HERO_LAND:
+                proof, ref, stdb, second = HERO_LAND[name]
+                if second and witness:
+                    wits.append({"name": second.split(" (")[0], "relation": second.split("(")[1].rstrip(")"),
+                                 "at": created.isoformat(timespec="seconds")})
+                p.land_proof, p.land_proof_ref, p.stdb_status = proof, ref, stdb
+                p.boundary_sides = SIDES_DEMO[0] if name == "Budi Santoso" else SIDES_DEMO[n % 2]
+            else:
+                roll = rng.random()
+                p.land_proof = "sertifikat" if roll < 0.25 else "surat_desa" if roll < 0.72 else "pernyataan" if roll < 0.88 else None
+                p.stdb_status = ["ada", "proses", "belum"][int(rng.choice(3, p=[0.42, 0.36, 0.22]))]
+                if p.land_proof == "pernyataan" and witness and rng.random() < 0.6:
+                    wits.append({"name": f"{FIRST[int(rng.integers(len(FIRST)))]} (tetangga)", "relation": "tetangga",
+                                 "at": created.isoformat(timespec="seconds")})
+                if rng.random() < 0.03:
+                    p.dispute, p.dispute_note = True, "Batas selatan masih diperdebatkan dengan tetangga"
+                p.boundary_sides = SIDES_DEMO[n % 2] if rng.random() < 0.7 else None
+            p.witnesses = wits
+            if method == "ai_watershed" or rng.random() < 0.5:
+                p.gps_lat, p.gps_lng, p.gps_accuracy_m = p.centroid_lat, p.centroid_lng, float(round(rng.uniform(4, 12), 1))
             db.add(p)
             db.flush()
             plots.append(p)
@@ -182,6 +236,14 @@ def seed(reset: bool = False) -> dict:
             plot_svc.apply_analysis(db, p, force_demo=True, kawasan_policy="lokal")
             # analisis lama dibuat seolah-olah dijalankan saat kebun didaftarkan
             p.analyses[0].created_at = p.created_at + timedelta(minutes=3)
+            p.analyzed_at = p.created_at + timedelta(minutes=3)
+        for p in sorted(plots, key=lambda q: q.created_at):
+            audit.log(db, "Rahmat Hidayat", "koperasi", "kebun_didaftarkan", "kebun", p.id,
+                      f"Kebun {p.code} didaftarkan ({p.area_ha:.2f} ha, {len(p.witnesses or [])} saksi)",
+                      {"area_ha": round(p.area_ha, 3), "method": p.delineation_method, "land_proof": p.land_proof},
+                      at=p.created_at)
+            audit.log(db, "Rahmat Hidayat", "koperasi", "cek_satelit", "kebun", p.id, f"Cek satelit: {p.risk_headline}",
+                      {"risk": p.risk_level, "source": "simulasi"}, at=p.analyzed_at)
 
         collectors = []
         for i, (nm, village, _) in enumerate(COLLECTORS):
@@ -262,12 +324,66 @@ def seed(reset: bool = False) -> dict:
                     db.add(Delivery(collector_id=c.id, mill_id=mill.id, weight_kg=round(total),
                                     created_at=(nxt - timedelta(hours=8))))
                 day = nxt
+        _seed_verification(db, plots, now, rng)
         db.commit()
         summary = {
             "plots": len(plots), "farmers": len(farmers), "collectors": len(collectors),
             "transactions": db.query(Transaction).count(), "deliveries": db.query(Delivery).count(),
         }
+    ensure_demo_users()
     return summary
+
+
+def _seed_verification(db, plots: list[Plot], now: datetime, rng: np.random.Generator) -> None:
+    """Riwayat verifikasi demo: satu putaran inspeksi selesai (Okt) dan putaran berjalan (Nov) + satu keberatan."""
+    by_name = {p.farmer.name: p for p in plots[:10]}
+    done_at = now - timedelta(days=24)
+    done = [by_name[n] for n in ("Budi Santoso", "Agus Pratama", "Hasan Siregar", "Sutrisno Wibowo")]
+    extra = [p for p in plots[10:] if p.risk_level == "rendah"][:6]
+    for k, p in enumerate(done + extra):
+        bad = k == len(done) + 2  # satu kebun tidak sesuai di lapangan
+        i = Inspection(plot_id=p.id, batch="2026-10", reason="belum_pernah" if k < len(done) else "acak",
+                       status="selesai", result="tidak_sesuai" if bad else "sesuai", inspector="Andi Saputra",
+                       notes=("Batas timur di lapangan sekitar 20 m lebih sempit dari peta; sebagian kebun tetangga ikut "
+                              "tergambar. Perlu digambar ulang.") if bad else "Batas, umur tanaman, dan patok sesuai peta.",
+                       photo_lat=p.centroid_lat, photo_lng=p.centroid_lng, photo_distance_m=0.0,
+                       created_at=done_at - timedelta(days=10), done_at=done_at + timedelta(hours=k))
+        db.add(i)
+        p.verified_at, p.verified_result, p.verified_by = i.done_at, i.result, "Andi Saputra"
+        audit.log(db, "Andi Saputra", "verifikator", "inspeksi_selesai", "kebun", p.id,
+                  f"Inspeksi lapangan {p.code}: {'TIDAK sesuai' if bad else 'sesuai'}", {"batch": "2026-10"}, at=i.done_at)
+    pending = [by_name[n] for n in ("Joko Susilo", "Rina Wati", "Darmawan Lubis")]
+    pending += [p for p in plots[10:] if p.risk_level in ("tinggi", "perlu_cek")][:4]
+    for p in pending:
+        reason = "berisiko" if p.risk_level == "tinggi" else "perlu_cek"
+        db.add(Inspection(plot_id=p.id, batch="2026-11", reason=reason, status="menunggu", created_at=now - timedelta(days=3)))
+    audit.log(db, "Andi Saputra", "verifikator", "sampel_inspeksi", "inspeksi", None,
+              f"Sampel inspeksi 2026-11: {len(pending)} kebun dipilih berbasis risiko", None, at=now - timedelta(days=3))
+    joko = by_name["Joko Susilo"]
+    db.add(Appeal(plot_id=joko.id, submitted_by="Rahmat Hidayat", evidence_type="foto_lapangan",
+                  original_risk=joko.risk_level, created_at=now - timedelta(days=2),
+                  reason=("Menurut petani, lahan ini kebun karet tua sejak 2012, bukan hutan. Tahun 2022 karet ditebang lalu "
+                          "ditanami sawit. Ada foto tunggul karet dan kesaksian kepala dusun.")))
+    audit.log(db, "Rahmat Hidayat", "koperasi", "keberatan_diajukan", "kebun", joko.id,
+              f"Keberatan atas status {joko.code} (Foto lapangan / kesaksian)", None, at=now - timedelta(days=2))
+    db.flush()
+
+
+def ensure_demo_users() -> int:
+    """Membuat akun demo bila belum ada (idempoten). Kata sandi dari PK_DEMO_PASSWORD."""
+    if not DEMO_ACCOUNTS:
+        return 0
+    made = 0
+    with SessionLocal() as db:
+        cols = {c.name: c.id for c in db.scalars(select(Collector))}
+        for username, name, role, org, col in DEMO_USERS:
+            if db.scalar(select(User).where(User.username == username)):
+                continue
+            db.add(User(username=username, display_name=name, role=role, organisation=org, is_demo=True,
+                        collector_id=cols.get(col) if col else None, password_hash=hash_password(DEMO_PASSWORD)))
+            made += 1
+        db.commit()
+    return made
 
 
 if __name__ == "__main__":
