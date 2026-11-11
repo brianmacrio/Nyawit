@@ -83,6 +83,33 @@ tidak tahu status hukum ini, jadi kami membaca peta resmi:
 Batasan: peta kawasan berskala kecil dan bisa tertinggal dari SK pelepasan terbaru. Karena itu hasil "masuk kawasan" adalah
 sinyal untuk diverifikasi (sertifikat, SK pelepasan, cek lapangan), bukan vonis.
 
+## 6. Pemetaan oleh petani, status Siap EUDR, dan verifikasi
+
+**Mengapa tidak meminta petani membaca citra satelit.** Program pemetaan yang berhasil tidak mengandalkan petani membaca citra
+sendirian. Di Rwanda (11 juta bidang, sekitar US$6 per bidang, sengketa < 1%), petugas lokal menggambar batas di foto udara
+bersama pemilik dan tetangga. Studi IFPRI di Kenya: hanya 70% rumah tangga bisa menggambar petaknya di tablet berisi citra
+2,5 m. Studi drone di Rwanda: sudut tanpa penanda di lapangan meleset lebih dari 5 m. GPS ponsel di bawah kanopi pun meleset
+sekitar 9-10 m. Karena itu alurnya: GPS saat berdiri di kebun (EUDR cukup satu titik untuk kebun < 4 ha), draf batas AI,
+pertanyaan ciri batas per sisi, "sudut ini = posisi saya" untuk sudut yang tidak jelas, dan saksi tetangga.
+
+**Lima syarat Siap EUDR** (services/readiness.py): lokasi disaksikan; bukti penguasaan lahan bertingkat (sertifikat / surat
+desa / pernyataan + 2 saksi, sesuai Permentan 33/2025 yang tidak mewajibkan sertifikat) + STDB ada/diurus + tanpa sengketa;
+di luar kawasan hutan; bebas deforestasi setelah 31 Des 2020; tidak menunggu atau gagal inspeksi. Berlaku 12 bulan.
+
+**Sampel verifikasi.** Ukuran sampel mengikuti inspeksi internal Standar Petani Swadaya RSPO 2024: akar(n) x 2,5 x 1,5.
+Kebun berisiko, perlu cek, bersengketa, dan berbukti lemah dipilih lebih dulu; sisanya diundi berbobot luas. Foto inspeksi
+dicek jaraknya ke batas kebun (> 150 m diberi peringatan).
+
+**Keberatan.** Diputuskan verifikator dengan alasan tertulis. Bila analisis satelit berikutnya menghasilkan bukti baru,
+keputusan lama gugur otomatis dan kebun ditinjau ulang.
+
+**Riwayat berantai hash** (services/audit.py). Setiap kejadian menyimpan SHA-256 dari isinya dan hash kejadian sebelumnya,
+sehingga perubahan atau penghapusan diam-diam di database terdeteksi oleh `verify_chain`.
+
+**Paket ekspor** (services/shipment.py). Mengikuti informasi uji tuntas EUDR: geolokasi semua kebun asal, rentang produksi,
+volume, bukti bebas deforestasi dan legalitas. Hanya kebun Siap EUDR yang masuk; pedoman EUDR menyatakan pencampuran
+(*mass balance*) tidak diterima. Nama petani tidak disertakan karena tidak diwajibkan.
+
 ## Sumber
 
 - Whisp: https://pypi.org/project/openforis-whisp/
@@ -96,3 +123,10 @@ sinyal untuk diverifikasi (sertifikat, SK pelepasan, cek lapangan), bukan vonis.
 - Satelligence × Fairtrade: https://the-european.eu/story-50128/
 - Koltiva × REA Kaltim: https://www.agtechnavigator.com/Article/2025/08/11/tackling-barriers-to-eudr-compliance-for-indonesian-smallholders
 - Layanan peta Kawasan Hutan Kemenhut (SIGAP): https://geoportal.menlhk.go.id/server/rest/services/SIGAP_Interaktif/Kawasan_Hutan/MapServer
+- RSPO Independent Smallholder Standard 2024: https://rspo.org/wp-content/uploads/Consolidated-ISH-2024_Adopted_13112024.pdf
+- Permentan No. 33 Tahun 2025 (ISPO): https://peraturan.go.id/files/permentan-no-33-tahun-2025.pdf
+- Pedoman EUDR C/2026/3896: https://eur-lex.europa.eu/eli/C/2026/3896/oj/eng
+- Rwanda LTR: https://www.gim-international.com/content/article/spatial-initiatives-for-sustainable-land-management
+- Pemetaan partisipatif drone Rwanda (FIG 2020): https://fig.net/resources/proceedings/fig_proceedings/fig2020/papers/ts07h/TS07H_stocker_koeva_et_al_10290.pdf
+- IFPRI, pemetaan petak oleh petani di tablet: https://www.ifpri.org/blog/leveraging-local-knowledge-map-and-link-agricultural-plots-farmer-practices/
+- Akurasi GPS ponsel di bawah kanopi (Forests 13:1591): https://mdpi.com/1999-4907/13/10/1591
