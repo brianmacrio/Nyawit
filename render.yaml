@@ -1,0 +1,20 @@
+# Deploy gratis di Render (render.com): New + > Blueprint > pilih repo ini.
+# Free plan tidur setelah 15 menit tanpa akses; permintaan pertama butuh ±1 menit untuk bangun.
+# Disk free plan tidak permanen: data demo dibuat ulang otomatis setiap server mulai.
+services:
+  - type: web
+    name: pasporkebun
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: PK_SECRET_KEY
+        generateValue: true
+      - key: PK_COOKIE_SECURE
+        value: "1"
+      - key: PK_SATELLITE_MODE
+        value: demo
+      - key: PK_KAWASAN_SOURCE
+        value: auto
+      - key: PK_DEMO_ACCOUNTS
+        value: "1"
