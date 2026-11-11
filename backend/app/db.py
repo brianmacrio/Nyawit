@@ -38,3 +38,36 @@ def init_db() -> None:
     from . import models  # noqa: F401  (registrasi tabel)
 
     Base.metadata.create_all(engine)
+    migrate_add_columns()
+
+
+def migrate_add_columns() -> list[str]:
+    """Migrasi aditif sederhana: kolom baru di model ditambahkan ke tabel lama (SQLite ALTER TABLE ADD COLUMN).
+
+    Data lama tidak disentuh, jadi database dari versi sebelumnya tetap bisa dibuka.
+    """
+    if not DB_URL.startswith("sqlite"):
+        return []
+    from sqlalchemy import inspect, text
+
+    added: list[str] = []
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if not insp.has_table(table.name):
+                continue
+            have = {c["name"] for c in insp.get_columns(table.name)}
+            for col in table.columns:
+                if col.name in have:
+                    continue
+                ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{col.name}" {col.type.compile(dialect=engine.dialect)}'
+                default = getattr(col.default, "arg", None)
+                if isinstance(default, bool):
+                    ddl += f" DEFAULT {int(default)}"
+                elif isinstance(default, (int, float)):
+                    ddl += f" DEFAULT {default}"
+                elif isinstance(default, str):
+                    ddl += " DEFAULT '" + default.replace("'", "''") + "'"
+                conn.execute(text(ddl))
+                added.append(f"{table.name}.{col.name}")
+    return added
