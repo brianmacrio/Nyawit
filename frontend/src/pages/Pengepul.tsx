@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Camera, CircleCheck, CircleAlert, Hand, ScanLine } from "lucide-react";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { DECISION_LABEL, dateTimeLabel, ha, kg } from "../lib/format";
 import type { CheckResult, PassportLookup, Txn } from "../lib/types";
 import { QrScanner } from "../components/QrScanner";
@@ -31,8 +32,10 @@ function CapacityBar({ used, upper, typical }: { used: number; upper: number; ty
 }
 
 export default function Pengepul() {
+  const { user, demo } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [collectors, setCollectors] = useState<{ id: number; name: string; village: string }[]>([]);
-  const [cid, setCid] = useState<number>(1);
+  const [cid, setCid] = useState<number>(user?.collector_id ?? 1);
   const [code, setCode] = useState("");
   const [scan, setScan] = useState(false);
   const [found, setFound] = useState<PassportLookup | null>(null);
@@ -46,6 +49,9 @@ export default function Pengepul() {
   useEffect(() => {
     api.collectors().then(setCollectors).catch((e) => setErr(e.message));
   }, []);
+  useEffect(() => {
+    if (user?.collector_id) setCid(user.collector_id);
+  }, [user?.collector_id]);
   useEffect(() => {
     loadHistory(cid);
   }, [cid, loadHistory]);
@@ -76,7 +82,7 @@ export default function Pengepul() {
     setBusy(true);
     setErr(null);
     try {
-      const r = await api.record(found.plot.code, cid, w);
+      const r = await api.record(found.plot.code, w, isAdmin ? cid : undefined);
       setResult(r);
       setFound(await api.lookup(found.plot.code));
       loadHistory(cid);
@@ -103,12 +109,24 @@ export default function Pengepul() {
             Setiap membeli TBS, pindai paspor kebun lalu catat beratnya. Sistem mengecek apakah volume itu masuk akal untuk kebun tersebut.
           </p>
         </div>
-        <label className="field" style={{ minWidth: 240 }}>
-          <span>Masuk sebagai pengepul</span>
-          <select className="select" value={cid} onChange={(e) => { setCid(Number(e.target.value)); reset(); }}>
-            {collectors.map((c) => <option key={c.id} value={c.id}>{c.name}, {c.village}</option>)}
-          </select>
-        </label>
+        {isAdmin ? (
+          <label className="field" style={{ minWidth: 240 }}>
+            <span>Catat atas nama pengepul (admin)</span>
+            <select className="select" value={cid} onChange={(e) => { setCid(Number(e.target.value)); reset(); }}>
+              {collectors.map((c) => <option key={c.id} value={c.id}>{c.name}, {c.village}</option>)}
+            </select>
+          </label>
+        ) : (
+          <div style={{ display: "grid", gap: 6, justifyItems: "end" }}>
+            <span className="small muted">Masuk sebagai</span>
+            <strong>{collectors.find((c) => c.id === cid)?.name ?? user?.name}</strong>
+            {user?.is_demo && (
+              <button className="btn btn-quiet small" onClick={() => { reset(); demo(user.username === "sinarjaya" ? "pengepul" : "sinarjaya"); }}>
+                Ganti ke {user.username === "sinarjaya" ? "UD Tani Jaya" : "UD Sinar Jaya"} (demo)
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="collector">

@@ -102,7 +102,8 @@ export default function Transparansi() {
           <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 8 }}>
             <li>NIK, foto KTP, dan foto wajah tidak disimpan. QR hanya berisi kode paspor.</li>
             <li>Paspor baru terbit setelah petani menyetujui berbagi data, dan waktu persetujuannya tercatat.</li>
-            <li>Berkas EUDR menyembunyikan nama petani yang belum memberi persetujuan.</li>
+            <li>Berkas EUDR dan paket ekspor tidak memuat nama petani (EUDR tidak memintanya); tampilan publik paspor menyamarkan nama.</li>
+            <li>Pabrik hanya melihat status bukti lahan, bukan salinan dokumen; dokumen tetap di koperasi.</li>
             <li>Data tersimpan di server koperasi sendiri (SQLite), bukan di layanan pihak ketiga.</li>
             <li>Pemindaian QR dengan kamera diproses di browser; gambar kamera tidak dikirim ke server.</li>
           </ul>
@@ -118,8 +119,47 @@ export default function Transparansi() {
           </ul>
         </section>
       </div>
+      <section className="panel panel-pad" style={{ marginTop: 16 }}>
+        <h2 style={{ fontSize: 18, marginBottom: 6 }}>Kapan kebun berstatus "Siap EUDR"</h2>
+        <p className="small muted" style={{ marginBottom: 10 }}>
+          Paspor Kebun adalah bukti uji tuntas, bukan sertifikat ISPO/RSPO (sertifikat itu hanya boleh diterbitkan lembaga sertifikasi
+          terakreditasi KAN atau ASI). Kebun Siap EUDR bila kelima syarat terpenuhi, dan statusnya berlaku 12 bulan sejak cek satelit terakhir.
+        </p>
+        <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>
+          <li><strong>Lokasi:</strong> batas dipetakan dan disaksikan tetangga atau ketua kelompok tani. EUDR cukup meminta satu titik GPS untuk kebun di bawah 4 ha.</li>
+          <li><strong>Lahan:</strong> ada bukti penguasaan (sertifikat, surat desa, atau pernyataan + 2 saksi), tidak ada sengketa, STDB sudah ada atau sedang diurus. Sertifikat tidak wajib: ISPO menerima surat penguasaan fisik.</li>
+          <li><strong>Kawasan:</strong> di luar kawasan hutan menurut peta resmi Kementerian Kehutanan.</li>
+          <li><strong>Hutan:</strong> satelit tidak menemukan pembukaan hutan setelah 31 Desember 2020.</li>
+          <li><strong>Verifikasi:</strong> tidak sedang menunggu atau gagal inspeksi lapangan oleh verifikator independen.</li>
+        </ol>
+      </section>
+
+      <div className="grid-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <section className="panel panel-pad">
+          <h2 style={{ fontSize: 18, marginBottom: 10 }}>Siapa memeriksa siapa</h2>
+          <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 8 }}>
+            <li><strong>Petugas koperasi</strong> memetakan kebun bersama petani dan saksi, mencatat bukti lahan (sistem kendali internal).</li>
+            <li><strong>AI</strong> memeriksa riwayat satelit dan kawasan hutan, menjaga titik pengepul, dan memilih kebun yang paling perlu didatangi.</li>
+            <li><strong>Verifikator independen</strong> mengunjungi sampel kebun (akar(n) x 2,5 x 1,5, rumus RSPO) dan memutuskan keberatan dengan alasan tertulis.</li>
+            <li><strong>Pabrik</strong> menerima status, bukan salinan dokumen petani, lalu menyusun paket data untuk importir.</li>
+            <li><strong>Petani</strong> bisa mengajukan keberatan atas status kebunnya; keputusan gugur otomatis bila satelit menemukan bukti baru.</li>
+          </ul>
+        </section>
+        <section className="panel panel-pad">
+          <h2 style={{ fontSize: 18, marginBottom: 10 }}>Keamanan aplikasi</h2>
+          <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 8 }}>
+            <li>Masuk per peran; setiap endpoint yang mengubah data menyebut peran yang boleh. Pengepul hanya bisa mencatat atas nama usahanya.</li>
+            <li>Kata sandi disimpan sebagai hash PBKDF2-SHA256 (210.000 iterasi); sesi di cookie HttpOnly + SameSite yang ditandatangani HMAC.</li>
+            <li>Perlindungan CSRF, Content-Security-Policy, dan header keamanan lain; batas laju untuk login, AI, dan unggahan.</li>
+            <li>Riwayat perubahan berantai hash: mengubah satu baris diam-diam langsung terdeteksi (halaman Verifikasi, tab Integritas).</li>
+            <li>Rahasia (kunci sesi) disimpan di .env, tidak di kode. Foto inspeksi divalidasi, diperkecil, dan metadata EXIF-nya dibuang.</li>
+          </ul>
+        </section>
+      </div>
+
       <p className="small faint" style={{ marginTop: 16 }}>
-        Rincian validasi: docs/VALIDASI.md. Rincian algoritma dan sumber: docs/ALGORITMA.md.
+        Rincian validasi: docs/VALIDASI.md. Rincian algoritma dan sumber: docs/ALGORITMA.md. Kode aplikasi ini dikembangkan tim dengan bantuan
+        AI coding assistant (Claude, Anthropic); fitur AI di dalam produk tidak memakai layanan AI pihak ketiga dan berjalan di server sendiri.
       </p>
     </div>
   );
