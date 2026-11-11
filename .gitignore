@@ -13,3 +13,7 @@ frontend/dist/
 Thumbs.db
 .vscode/
 frontend/tsconfig.tsbuildinfo
+# Rahasia lokal
+.env
+backend/.env
+!.env.example
