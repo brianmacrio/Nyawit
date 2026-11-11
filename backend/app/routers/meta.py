@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from ..config import APP_VERSION, EUDR_APPLICATION, EUDR_CUTOFF, SATELLITE_MODE, TILE_URL
 from ..db import get_db
+from ..models import User
+from ..security import rate_limit, require
 from ..services import delineation, kawasan
 from ..services.satellite import live
 
@@ -31,7 +33,7 @@ def meta():
 
 
 @router.get("/kawasan/status")
-def kawasan_status(probe: bool = False):
+def kawasan_status(probe: bool = False, _: User = Depends(require())):
     """Status layanan peta kawasan Kemenhut. `probe=true` mencoba menghubungi layanan sekarang."""
     if probe:
         kawasan.reset_breaker()
@@ -45,8 +47,8 @@ def kawasan_status(probe: bool = False):
     return kawasan.status()
 
 
-@router.post("/demo/reset")
-def reset_demo(db: Session = Depends(get_db)):
+@router.post("/demo/reset", dependencies=[Depends(rate_limit("reset", 3, 600))])
+def reset_demo(db: Session = Depends(get_db), _: User = Depends(require("admin"))):
     from ..seed import seed
 
     db.close()

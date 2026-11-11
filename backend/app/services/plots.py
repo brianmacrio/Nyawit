@@ -7,9 +7,9 @@ from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import Analysis, Farmer, Plot
+from ..models import Analysis, Appeal, Farmer, Inspection, Plot
 from . import analysis as analysis_svc
-from . import geo
+from . import audit, geo, readiness
 
 _ALPHA = string.ascii_uppercase
 
@@ -49,7 +49,26 @@ def planting_consistency(p: Plot) -> dict | None:
     return None
 
 
-def plot_summary(p: Plot) -> dict:
+def mask_name(name: str) -> str:
+    """'Budi Santoso' -> 'Budi S.' untuk tampilan publik (minimasi data pribadi)."""
+    parts = name.split()
+    return parts[0] if len(parts) == 1 else f"{parts[0]} {parts[-1][0]}."
+
+
+def pending_inspections(db: Session) -> set[int]:
+    return set(db.scalars(select(Inspection.plot_id).where(Inspection.status == "menunggu")))
+
+
+def plot_summary(p: Plot, pending: set[int] | None = None) -> dict:
+    d = _summary(p)
+    if pending is not None:
+        r = readiness.evaluate(p, p.id in pending)
+        d["eudr_ready"] = r["ready"]
+        d["readiness_missing"] = r["missing"]
+    return d
+
+
+def _summary(p: Plot) -> dict:
     return {
         "id": p.id,
         "code": p.code,
@@ -63,6 +82,7 @@ def plot_summary(p: Plot) -> dict:
         "boundary_confirmed": p.boundary_confirmed,
         "planting_year": effective_planting_year(p),
         "delineation_method": p.delineation_method,
+        "status_override": bool(p.status_override),
     }
 
 
@@ -83,20 +103,64 @@ def analysis_dict(a: Analysis | None) -> dict | None:
     }
 
 
-def plot_detail(p: Plot) -> dict:
-    d = plot_summary(p)
+def plot_detail(p: Plot, db: Session | None = None) -> dict:
+    d = _summary(p)
+    pending = False
+    insps: list[dict] = []
+    appeals: list[dict] = []
+    history: list[dict] = []
+    if db is not None:
+        rows = db.scalars(select(Inspection).where(Inspection.plot_id == p.id).order_by(Inspection.id.desc()).limit(5)).all()
+        pending = any(i.status == "menunggu" for i in rows)
+        insps = [inspection_brief(i) for i in rows]
+        appeals = [appeal_dict(a) for a in db.scalars(select(Appeal).where(Appeal.plot_id == p.id).order_by(Appeal.id.desc()))]
+        history = audit.for_entity(db, "kebun", p.id, limit=30)
     d.update({
         "planting_year_declared": p.planting_year_declared,
         "planting_year_detected": p.planting_year_detected,
         "planting_consistency": planting_consistency(p),
         "witness": p.witness,
+        "witnesses": readiness.witness_list(p),
+        "boundary_sides": p.boundary_sides or {},
+        "gps": {"lat": p.gps_lat, "lng": p.gps_lng, "accuracy_m": p.gps_accuracy_m} if p.gps_lat is not None else None,
+        "land": {
+            "proof": p.land_proof, "proof_label": readiness.LAND_PROOF_LABEL.get(p.land_proof or "", None),
+            "ref": p.land_proof_ref, "stdb_status": p.stdb_status or "belum",
+            "stdb_label": readiness.STDB_LABEL.get(p.stdb_status or "belum"), "stdb_number": p.stdb_number,
+            "dispute": bool(p.dispute), "dispute_note": p.dispute_note,
+        },
         "consent": p.farmer.consent_given,
         "consent_at": p.farmer.consent_at.isoformat(timespec="seconds") if p.farmer.consent_at else None,
         "created_at": p.created_at.isoformat(timespec="seconds"),
         "analysis": analysis_dict(p.analyses[0] if p.analyses else None),
         "scenario": p.scenario,
+        "override": p.status_override,
+        "verification": {"at": p.verified_at.isoformat(timespec="seconds") if p.verified_at else None,
+                         "result": p.verified_result, "by": p.verified_by},
+        "readiness": readiness.evaluate(p, pending),
+        "inspections": insps,
+        "appeals": appeals,
+        "history": history,
     })
     return d
+
+
+def inspection_brief(i: Inspection) -> dict:
+    return {"id": i.id, "batch": i.batch, "reason": i.reason, "status": i.status, "result": i.result,
+            "notes": i.notes, "inspector": i.inspector, "has_photo": bool(i.photo_path),
+            "photo_distance_m": i.photo_distance_m,
+            "created_at": i.created_at.isoformat(timespec="seconds"),
+            "done_at": i.done_at.isoformat(timespec="seconds") if i.done_at else None}
+
+
+def appeal_dict(a: Appeal) -> dict:
+    return {"id": a.id, "plot_id": a.plot_id, "plot_code": a.plot.code, "farmer": a.plot.farmer.name,
+            "submitted_by": a.submitted_by, "reason": a.reason, "evidence_type": a.evidence_type,
+            "status": a.status, "original_risk": a.original_risk, "new_risk": a.new_risk,
+            "decision_note": a.decision_note, "decided_by": a.decided_by,
+            "created_at": a.created_at.isoformat(timespec="seconds"),
+            "decided_at": a.decided_at.isoformat(timespec="seconds") if a.decided_at else None,
+            "current_risk": a.plot.risk_level, "headline": a.plot.risk_headline}
 
 
 def find_or_create_farmer(db: Session, name: str, village: str, consent: bool) -> Farmer:
@@ -149,6 +213,36 @@ def apply_analysis(db: Session, p: Plot, force_demo: bool = False, kawasan_polic
     db.add(a)
     p.risk_level, p.risk_headline = r["risk_level"], r["headline"]
     p.planting_year_detected = r["planting_year_detected"]
+    prot = r["evidence"].get("protected") or {}
+    p.analyzed_at = datetime.now()
+    p.analysis_rule = r["evidence"].get("rule")
+    p.kawasan_pct = prot.get("pct")
+    p.kawasan_checked = bool(prot.get("checked"))
+    p.kawasan_source = prot.get("source")
+    # bukti satelit baru menggantikan keputusan keberatan sebelumnya (perlu ditinjau ulang bila berbeda)
+    p.status_override = None
     db.flush()
     db.refresh(p)
     return a
+
+
+def fit_to_neighbors(db: Session, geom: dict, exclude_id: int | None = None) -> dict:
+    """Merapikan draf batas: bagian yang bertumpuk dengan kebun terdaftar dipotong mengikuti batas tetangga."""
+    from shapely.geometry import shape
+
+    g = shape(geo.validate_polygon(geom))
+    before = geo.area_ha(geom)
+    cut: list[dict] = []
+    for o in overlaps(db, geom, exclude_id):
+        q = db.get(Plot, o["plot_id"])
+        g = g.difference(shape(q.geometry))
+        cut.append({"code": o["code"], "farmer": o["farmer"], "overlap_ha": o["overlap_ha"]})
+    if g.is_empty:
+        raise ValueError("Seluruh draf berada di dalam kebun lain. Periksa lagi lokasi kebun.")
+    if g.geom_type == "MultiPolygon":
+        g = max(g.geoms, key=lambda x: x.area)
+    g = g.simplify(0.0000015, preserve_topology=True)  # ~0,15 m: buang titik sisa pemotongan
+    ring = [[round(x, 7), round(y, 7)] for x, y in g.exterior.coords]
+    out = {"type": "Polygon", "coordinates": [ring]}
+    return {"geometry": out, "area_ha": round(geo.area_ha(out), 3), "removed_ha": round(before - geo.area_ha(out), 3),
+            "neighbors": cut}

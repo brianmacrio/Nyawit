@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 
 from ..config import TILE_ZOOM
+from ..models import User
 from ..schemas import DelineateIn
+from ..security import rate_limit, require
 from ..services import delineation, tiles
 
 router = APIRouter(prefix="/api/ai", tags=["AI"])
 
 
-@router.post("/delineate")
-async def delineate(body: DelineateIn):
+@router.post("/delineate", dependencies=[Depends(rate_limit("ai", 30, 60))])
+async def delineate(body: DelineateIn, _: User = Depends(require("koperasi"))):
     z = body.zoom or TILE_ZOOM
     try:
         rgb, ox, oy = await run_in_threadpool(tiles.fetch_patch, body.lat, body.lng, z, 1)

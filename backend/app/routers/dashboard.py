@@ -11,7 +11,10 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..config import EUDR_APPLICATION
 from ..db import get_db
-from ..models import Collector, Delivery, Farmer, Plot, Transaction
+from ..models import Collector, Delivery, Farmer, Plot, Transaction, User
+from ..security import require
+from ..services import readiness
+from ..services import plots as plot_svc
 from ..services import supply as supply_svc
 from ..services.supply_guard import score_collectors
 from .plots import eudr_feature
@@ -28,7 +31,7 @@ def _month_start(d: datetime, back: int) -> datetime:
 
 
 @router.get("")
-def dashboard(db: Session = Depends(get_db)):
+def dashboard(db: Session = Depends(get_db), _: User = Depends(require("pabrik", "verifikator"))):
     """Satu query per tabel lalu diolah di memori (hemat I/O, < 100 ms untuk ribuan transaksi)."""
     t0 = time.perf_counter()
     now = datetime.now()
@@ -44,7 +47,14 @@ def dashboard(db: Session = Depends(get_db)):
     by_risk: dict[str, int] = defaultdict(int)
     for p in plots:
         by_risk[p.risk_level or "belum"] += 1
-    ready = [p for p in plots if p.risk_level == "rendah" and p.boundary_confirmed and p.farmer.consent_given]
+    pending = plot_svc.pending_inspections(db)
+    evals = {p.id: readiness.evaluate(p, p.id in pending, now) for p in plots}
+    ready = [p for p in plots if evals[p.id]["ready"]]
+    blockers: dict[str, int] = defaultdict(int)
+    for r in evals.values():
+        for c in r["checks"]:
+            if not c["ok"]:
+                blockers[c["key"]] += 1
 
     since30 = now - timedelta(days=30)
     t30 = [t for t in txns if t.created_at >= since30]
@@ -93,6 +103,7 @@ def dashboard(db: Session = Depends(get_db)):
             "risk": dict(by_risk),
             "eudr_ready": len(ready),
             "eudr_ready_share": round(len(ready) / len(plots), 3) if plots else 0,
+            "blockers": dict(blockers),
             "traced_share_30d": round(min(traced30 / delivered30, 1), 3) if delivered30 else None,
             "delivered_t_30d": round(delivered30 / 1000, 1),
             "traced_t_30d": round(traced30 / 1000, 1),
@@ -110,7 +121,8 @@ def dashboard(db: Session = Depends(get_db)):
 
 
 @router.get("/eudr.geojson")
-def eudr_all(db: Session = Depends(get_db)):
-    ps = [p for p in db.scalars(select(Plot).where(Plot.risk_level == "rendah")) if p.farmer.consent_given]
+def eudr_all(db: Session = Depends(get_db), _: User = Depends(require("pabrik"))):
+    pending = plot_svc.pending_inspections(db)
+    ps = [p for p in db.scalars(select(Plot)) if readiness.evaluate(p, p.id in pending)["ready"]]
     fc = {"type": "FeatureCollection", "features": [eudr_feature(p) for p in ps]}
-    return JSONResponse(fc, headers={"Content-Disposition": 'attachment; filename="eudr_kebun_aman.geojson"'})
+    return JSONResponse(fc, headers={"Content-Disposition": 'attachment; filename="eudr_kebun_siap.geojson"'})
