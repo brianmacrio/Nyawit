@@ -1,4 +1,4 @@
-import type { Risk } from "./types";
+import type { KawasanInfo, Risk } from "./types";
 
 const nf1 = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
 const nf0 = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
@@ -36,3 +36,21 @@ export const RISK_COLOR: Record<Risk | "none", string> = {
 };
 
 export const DECISION_LABEL = { diterima: "Diterima", catatan: "Diterima dengan catatan", ditahan: "Ditahan" } as const;
+
+/** Ringkasan status kawasan hutan untuk dibaca manusia, mis. "64% Hutan Lindung". */
+export function kawasanText(k: KawasanInfo | undefined | null): string {
+  if (!k) return "–";
+  const parts = (k.parts ?? []).filter((p) => p.kawasan && p.pct >= 1);
+  if (k.pct > 0) return parts.length ? parts.slice(0, 2).map((p) => `${nf0.format(p.pct)}% ${p.label}`).join(", ") : `${nf0.format(k.pct)}% kawasan hutan`;
+  if ((k.unknown_pct ?? 0) > 0) return "Fungsi kawasan belum terbaca";
+  if (k.source === "tidak_ada") return "Belum bisa dicek";
+  if ((k.parts ?? []).some((p) => p.fungsi === "APL" && p.pct >= 50)) return "Di luar kawasan hutan (APL)";
+  return "Di luar kawasan hutan";
+}
+
+export const KAWASAN_SOURCE_SHORT: Record<string, string> = {
+  kemenhut: "peta Kemenhut",
+  lokal: "peta resmi lokal",
+  ilustrasi: "peta ilustrasi demo",
+  tidak_ada: "peta tidak terjangkau",
+};

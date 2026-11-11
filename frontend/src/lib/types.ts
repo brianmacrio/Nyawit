@@ -65,7 +65,7 @@ export interface Analysis {
     sources: string[];
     warnings: string[];
     cutoff: string;
-    protected: { pct: number; name: string | null };
+    protected: KawasanInfo;
   };
   timeseries: TimeSeries;
   data_source: "simulasi" | "live";
@@ -180,6 +180,37 @@ export interface Dashboard {
   compute_ms: number;
 }
 
+export interface KawasanPart {
+  fungsi: string;
+  label: string;
+  pct: number;
+  name: string | null;
+  kawasan: boolean | null;
+  source: string;
+}
+
+/** Status kawasan hutan kebun dari peta Kemenhut (online/cache) atau GeoJSON lokal. */
+export interface KawasanInfo {
+  pct: number;
+  name: string | null;
+  fungsi?: string | null;
+  label?: string | null;
+  parts?: KawasanPart[];
+  unknown_pct?: number;
+  source?: "kemenhut" | "lokal" | "ilustrasi" | "tidak_ada";
+  source_label?: string;
+  checked?: boolean;
+  policy?: string;
+  checked_at?: string | null;
+  warnings?: string[];
+}
+
+export interface OverlapCheck {
+  area_ha: number;
+  overlaps: Overlap[];
+  protected: KawasanInfo;
+}
+
 export interface Meta {
   version: string;
   satellite_mode: "demo" | "live";
@@ -188,6 +219,15 @@ export interface Meta {
   eudr_cutoff: string;
   eudr_application: string;
   imagery: string;
+  kawasan?: {
+    policy: "auto" | "online" | "lokal";
+    service: string;
+    layers: number[] | null;
+    online: boolean | null;
+    last_error: string | null;
+    cached_cells: number;
+    source_label: string;
+  };
 }
 
 export interface DelineateResult {
@@ -204,6 +244,8 @@ export interface DelineateResult {
 export interface ProtectedArea {
   name: string;
   status: string;
+  fungsi?: string;
+  fungsi_label?: string;
   is_demo: boolean;
   geometry: GeoPolygon;
 }

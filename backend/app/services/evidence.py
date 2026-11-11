@@ -8,13 +8,15 @@ beberapa sumber bukti. Kami menambah dua hal:
     2020 sudah kebun sawit adalah peremajaan (mis. program PSR), bukan deforestasi.
 
 Aturan (urutan diterapkan):
-  0. Kebun tumpang tindih kawasan hutan/konservasi > 5%       -> tinggi (legalitas)
+  0. Kebun tumpang tindih kawasan hutan > 5% (peta Kemenhut)  -> tinggi (legalitas)
   1. Tutupan pohon 2020 <= 10%                                -> rendah
   2. Ada tutupan pohon, tapi 2020 sudah komoditas (>= 50%)    -> rendah
   3. Ada tutupan pohon, gangguan sebelum 2021 (>= 50%)        -> rendah
   4. Ada tutupan pohon (hutan) dan gangguan sesudah 2020      -> tinggi
   5. Selain itu                                               -> perlu_cek (butuh info)
 Ambang mengikuti default Whisp (10% / 50%).
+Setelah aturan 1-5: hasil "rendah" diturunkan menjadi perlu_cek bila fungsi kawasan tidak
+terbaca, atau (mode live) bila status kawasan belum bisa dicek ke peta resmi.
 """
 from __future__ import annotations
 
@@ -36,6 +38,14 @@ LAYER_SOURCES = {
     "disturbance_after_2020": "Hansen GFC 2021-2025 + peringatan RADD Sentinel-1",
     "protected": "Peta kawasan hutan / kawasan konservasi",
 }
+
+NOTE_KONSERVASI = ("Kawasan konservasi dan hutan lindung umumnya tidak bisa dilepas untuk kebun. Penyelesaian kebun yang "
+                   "telanjur ada diatur UU Cipta Kerja Pasal 110A/110B; arahkan petani ke pendamping atau KPH setempat "
+                   "sebelum TBS dijual ke rantai pasok ekspor.")
+NOTE_PRODUKSI = ("Kebun di hutan produksi perlu diselesaikan dulu, misalnya lewat pelepasan kawasan/TORA, perhutanan sosial, "
+                 "atau mekanisme keterlanjuran UU Cipta Kerja Pasal 110A/110B. Arahkan petani ke pendamping atau KPH setempat.")
+NOTE_BUKTI = ("Peta resmi bisa tertinggal dari SK pelepasan terbaru. Bila petani punya sertifikat atau SK pelepasan kawasan, "
+              "lampirkan untuk verifikasi manual.")
 
 
 @dataclass
@@ -73,7 +83,41 @@ def _pct(v: float | None) -> str:
     return "tidak tersedia" if v is None else f"{v:.0f}% luas kebun"
 
 
-def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_pct: float) -> RiskDecision:
+def _kawasan_value(kw: dict) -> str:
+    pct = kw.get("pct", 0.0)
+    parts = [p for p in kw.get("parts", []) if p.get("kawasan") and p["pct"] >= 1]
+    if pct > 0:
+        main = ", ".join(f"{dec(p['pct'], 0)}% {p['label']}" for p in parts[:2]) or f"{dec(pct, 0)}% kawasan hutan"
+        return main
+    if kw.get("unknown_pct", 0) > 0:
+        return f"{dec(kw['unknown_pct'], 0)}% di poligon tanpa fungsi terbaca"
+    src = kw.get("source")
+    if src == "tidak_ada":
+        return "belum dicek"
+    if any(p["fungsi"] == "APL" and p["pct"] >= 50 for p in kw.get("parts", [])):
+        return "di luar kawasan hutan (APL)"
+    return "di luar kawasan hutan" + (" (peta ilustrasi)" if src == "ilustrasi" else "")
+
+
+def _kawasan_item(kw: dict, strict: bool) -> EvidenceItem:
+    pct = kw.get("pct", 0.0)
+    if pct > T_PROTECTED:
+        verdict = "mendukung_risiko"
+    elif kw.get("unknown_pct", 0) > T_PROTECTED:
+        verdict = "netral"
+    elif kw.get("checked") or (not strict and kw.get("source") == "ilustrasi"):
+        verdict = "mendukung_aman"
+    else:
+        verdict = "tidak_tersedia"
+    detail = ("Aspek legalitas EUDR: lahan harus legal menurut hukum negara asal. Peta kawasan berskala kecil, "
+              "jadi batasnya bisa bergeser puluhan hingga ratusan meter.")
+    return EvidenceItem("protected", "Status kawasan hutan", _kawasan_value(kw), verdict,
+                        kw.get("source_label") or LAYER_SOURCES["protected"], detail)
+
+
+def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_pct: float,
+           kawasan: dict | None = None, strict: bool = False) -> RiskDecision:
+    """`kawasan` = hasil services.kawasan.lookup().to_dict(); `strict` = mode live (peta resmi wajib dicek)."""
     tree = layers.get("tree_cover_2020")
     com = layers.get("commodity_2020")
     before = layers.get("disturbance_before_2021")
@@ -83,14 +127,9 @@ def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_p
     clearing_before = [b for b in (ts.breaks if ts else []) if not b.after_cutoff and b.magnitude <= -0.2]
     ts_ok = ts is not None and ts.n_obs >= 40 and ts.span_years >= 5
 
-    items: list[EvidenceItem] = []
-    items.append(
-        EvidenceItem(
-            "protected", "Tumpang tindih kawasan hutan/konservasi", f"{protected_pct:.0f}% luas kebun",
-            "mendukung_risiko" if protected_pct > T_PROTECTED else "mendukung_aman", LAYER_SOURCES["protected"],
-            "Aspek legalitas EUDR: lahan harus legal menurut hukum negara asal.",
-        )
-    )
+    kw = kawasan or {"pct": protected_pct, "checked": True, "source": "lokal", "parts": [], "unknown_pct": 0.0,
+                     "label": None, "name": None, "fungsi": None, "source_label": LAYER_SOURCES["protected"]}
+    items: list[EvidenceItem] = [_kawasan_item(kw, strict)]
     items.append(
         EvidenceItem(
             "tree_cover_2020", "Tutupan pohon per 31 Des 2020", _pct(tree),
@@ -139,18 +178,38 @@ def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_p
             detail += " Citra bebas awan terlalu sedikit sehingga bobot bukti ini rendah."
         items.append(EvidenceItem("timeseries", "Analisis time series NDVI 2018-kini (AI)", val, verdict, "Sentinel-2 L2A", detail))
 
-    notes: list[str] = []
-    # ---- Aturan 0: legalitas ----
+    # ---- Aturan 0: legalitas (status kawasan hutan) ----
     if protected_pct > T_PROTECTED:
-        return RiskDecision(
-            "tinggi",
-            f"Berisiko: {protected_pct:.0f}% kebun berada di kawasan hutan/konservasi",
-            "aturan-0-legalitas",
-            0.95,
-            items,
-            ["Arahkan petani ke skema penyelesaian (mis. perhutanan sosial / keterlanjuran) sebelum dijual ke rantai pasok ekspor."],
-        )
+        dom = next((p for p in kw.get("parts", []) if p.get("kawasan")), None)
+        where = dom["label"] if dom else "kawasan hutan"
+        if dom and dom["label"] == "Kawasan konservasi":
+            where = "kawasan konservasi"
+        notes = [NOTE_KONSERVASI if (dom is None or dom["fungsi"] in ("KSA_KPA", "HL")) else NOTE_PRODUKSI, NOTE_BUKTI]
+        if dom and dom.get("name") and dom["name"] != dom["label"] and dom.get("source") != "ilustrasi":
+            notes.insert(0, f"Poligon kawasan: {dom['name']} ({dom['label']}).")
+        return RiskDecision("tinggi", f"Berisiko: {protected_pct:.0f}% kebun masuk {where}", "aturan-0-legalitas",
+                            0.95 if kw.get("checked") or kw.get("source") == "ilustrasi" else 0.8, items, notes)
 
+    r = _satellite_rules(items, tree, com, before, after, ts, clearing_after, clearing_before, ts_ok)
+    if 0 < protected_pct <= T_PROTECTED:
+        r.notes.append(f"{dec(protected_pct, 1)}% kebun bersinggungan dengan batas kawasan hutan. Selisih sekecil ini bisa "
+                       "berasal dari ketelitian peta; pastikan patok batas di lapangan.")
+    if r.risk_level == "rendah" and kw.get("unknown_pct", 0) > T_PROTECTED:
+        return RiskDecision("perlu_cek", "Perlu cek: fungsi kawasan di lokasi kebun belum terbaca dari peta",
+                            "aturan-0-fungsi-belum-terbaca", 0.5, items,
+                            r.notes + ["Bukti satelit aman, tetapi kebun berada di poligon peta kawasan yang fungsinya tidak "
+                                       "terbaca. Jalankan `python -m app.scripts.check_kawasan` untuk melihat kolomnya."],
+                            is_replanting=r.is_replanting)
+    if r.risk_level == "rendah" and strict and not kw.get("checked"):
+        return RiskDecision("perlu_cek", "Perlu cek: status kawasan hutan belum bisa diperiksa", "aturan-0-belum-dicek", 0.5,
+                            items, r.notes + ["Bukti satelit aman, tetapi peta kawasan Kemenhut belum terjangkau. Analisis "
+                                              "ulang saat internet tersedia atau taruh peta kawasan resmi (GeoJSON) di "
+                                              "backend/data/kawasan/."], is_replanting=r.is_replanting)
+    return r
+
+
+def _satellite_rules(items, tree, com, before, after, ts, clearing_after, clearing_before, ts_ok) -> RiskDecision:
+    notes: list[str] = []
     forest_2020 = tree is not None and tree > T_TREE
     if tree is None:
         notes.append("Lapisan tutupan pohon 2020 tidak tersedia; keputusan bersandar pada time series.")

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ..config import APP_VERSION, EUDR_APPLICATION, EUDR_CUTOFF, SATELLITE_MODE, TILE_URL
 from ..db import get_db
-from ..services import delineation
+from ..services import delineation, kawasan
 from ..services.satellite import live
 
 router = APIRouter(prefix="/api", tags=["Meta"])
@@ -26,7 +26,23 @@ def meta():
         "eudr_cutoff": EUDR_CUTOFF.isoformat(),
         "eudr_application": EUDR_APPLICATION.isoformat(),
         "imagery": TILE_URL.split("/")[2],
+        "kawasan": kawasan.status(),
     }
+
+
+@router.get("/kawasan/status")
+def kawasan_status(probe: bool = False):
+    """Status layanan peta kawasan Kemenhut. `probe=true` mencoba menghubungi layanan sekarang."""
+    if probe:
+        kawasan.reset_breaker()
+        try:
+            info = kawasan.service_info(refresh=True)
+            kawasan._mark_ok()
+            return {**kawasan.status(), "layers_found": len(info["layers"]), "selected_names": [
+                l["name"] for l in info["layers"] if l["id"] in info["selected"]]}
+        except Exception as e:  # noqa: BLE001
+            kawasan._mark_offline(e)
+    return kawasan.status()
 
 
 @router.post("/demo/reset")

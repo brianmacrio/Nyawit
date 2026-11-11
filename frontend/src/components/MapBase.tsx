@@ -1,10 +1,12 @@
 import { LayersControl, TileLayer } from "react-leaflet";
+import { KawasanLayer } from "./KawasanLayer";
 
 /**
- * Citra satelit asli (Esri World Imagery) + lapisan kehilangan tutupan pohon 2021-2025
- * dari Global Forest Watch (data Hansen/UMD asli, dimuat langsung oleh browser).
+ * Citra satelit asli (Esri World Imagery) + lapisan kehilangan tutupan pohon 2021-2024
+ * dari Global Forest Watch (data Hansen/UMD asli) + peta Kawasan Hutan Kemenhut,
+ * semuanya dimuat langsung oleh browser.
  */
-export function BaseLayers() {
+export function BaseLayers({ kawasan }: { kawasan?: { service: string; layers: number[] | null } | null }) {
   return (
     <LayersControl position="topright">
       <LayersControl.BaseLayer checked name="Citra satelit">
@@ -27,6 +29,11 @@ export function BaseLayers() {
           maxZoom={20}
         />
       </LayersControl.Overlay>
+      {kawasan && (
+        <LayersControl.Overlay name="Kawasan hutan (peta Kemenhut)">
+          <KawasanLayer url={kawasan.service} layers={kawasan.layers} />
+        </LayersControl.Overlay>
+      )}
     </LayersControl>
   );
 }

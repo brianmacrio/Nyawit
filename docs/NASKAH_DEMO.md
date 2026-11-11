@@ -12,6 +12,7 @@ Sebelum merekam: hapus `backend/data` lalu jalankan `start.bat` agar data demo b
 | 0:20–0:35 | Beranda, sorot paspor contoh | "PasporKebun: satu paspor untuk setiap kebun petani." |
 | 0:35–1:20 | Peta kebun → Daftarkan kebun → klik di tengah kebun nyata | "Petani menunjuk kebunnya. AI menggambar batas dari citra satelit." Tunjukkan model, keyakinan, waktu proses. Geser satu titik. |
 | 1:20–1:45 | Isi form, pilih skenario "Hutan dibuka 2022", centang persetujuan, simpan | "Satelit memeriksa riwayat lahan sejak 2018." Cap BERISIKO jatuh. |
+| (opsional) | Daftarkan kebun di lokasi nyata yang masuk kawasan hutan, nyalakan lapisan "Kawasan hutan (peta Kemenhut)" | "AI juga mengecek peta resmi Kemenhut: kebun ini 60% di Hutan Lindung." Uji lokasinya dulu sehari sebelumnya agar tersimpan di cache. |
 | 1:45–2:15 | Scroll paspor: bukti satelit + grafik NDVI | "AI menemukan hutan dibuka Juni 2022, setelah batas EUDR." Arahkan kursor ke titik merah di grafik. |
 | 2:15–2:40 | Buka kebun Sutrisno (PK-00003-P) | "Peremajaan sawit 2023 bukan deforestasi. Petani PSR tetap aman." |
 | 2:40–3:00 | Paspor Pak Budi (PK-00001-F): QR + unduh GeoJSON EUDR | "QR hanya berisi kode. Tanpa NIK, tanpa data pribadi." |
@@ -38,5 +39,8 @@ Sebelum merekam: hapus `backend/data` lalu jalankan `start.bat` agar data demo b
   dasbor dan menaikkan skor anomali pengepul itu.
 - *Akurasinya diuji dengan data nyata?* Validasi saat ini pada data simulasi berlabel; algoritma mengikuti metode yang sudah
   divalidasi di literatur (angka di halaman Cara kerja AI). Pilot akan memakai titik referensi lapangan.
+- *Status hutan lindung dari mana?* Dicek otomatis ke peta Kawasan Hutan resmi Kemenhut (SIGAP) saat kebun digambar.
+  Peta resmi bisa tertinggal dari SK pelepasan terbaru, jadi hasil "masuk kawasan" diverifikasi dengan sertifikat/SK, bukan
+  vonis.
 - *Bagaimana jika petani mengaku kebun orang lain?* Batas wajib disaksikan ketua poktan/tetangga; tumpang tindih otomatis
   terdeteksi dan diselesaikan lewat musyawarah.

@@ -4,7 +4,7 @@ import type {
   DelineateResult,
   GeoPolygon,
   Meta,
-  Overlap,
+  OverlapCheck,
   PassportLookup,
   PlotDetail,
   PlotSummary,
@@ -53,10 +53,7 @@ export const api = {
     req<PlotDetail>(`/api/plots/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
   createPlot: (data: Record<string, unknown>) => post<PlotDetail>("/api/plots", data),
   checkOverlap: (geometry: GeoPolygon, exclude_plot_id?: number) =>
-    post<{ area_ha: number; overlaps: Overlap[]; protected: { pct: number; name: string | null } }>(
-      "/api/plots/check-overlap",
-      { geometry, exclude_plot_id },
-    ),
+    post<OverlapCheck>("/api/plots/check-overlap", { geometry, exclude_plot_id }),
   delineate: (lat: number, lng: number, zoom?: number) => post<DelineateResult>("/api/ai/delineate", { lat, lng, zoom }),
   collectors: () => req<{ id: number; name: string; village: string }[]>("/api/collectors"),
   lookup: (code: string) => req<PassportLookup>(`/api/passport/${encodeURIComponent(code)}`),

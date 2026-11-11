@@ -19,7 +19,7 @@ from sqlalchemy import select
 from .config import DATA_DIR
 from .db import Base, SessionLocal, engine, init_db
 from .models import Collector, Cooperative, Delivery, Farmer, Mill, Plot, Transaction
-from .services import analysis as analysis_svc
+from .services import kawasan as kawasan_svc
 from .services import plots as plot_svc
 from .services import supply as supply_svc
 from .services.yield_model import SEASONAL, TYPICAL_SMALLHOLDER_FACTOR, potential_t_per_ha_year
@@ -31,7 +31,8 @@ KAWASAN = {
     "type": "FeatureCollection",
     "features": [{
         "type": "Feature",
-        "properties": {"name": "Kawasan konservasi (ILUSTRASI demo)", "status": "Taman Nasional - batas ilustratif", "is_demo": True},
+        "properties": {"name": "Kawasan konservasi (ILUSTRASI demo)", "status": "Taman Nasional - batas ilustratif",
+                       "fungsi": "KSA_KPA", "is_demo": True},
         "geometry": {"type": "Polygon", "coordinates": [[
             [101.9046, -0.1580], [101.9330, -0.1545], [101.9420, -0.1820], [101.9280, -0.2030],
             [101.9046, -0.1990], [101.9046, -0.1580],
@@ -98,7 +99,7 @@ def _write_kawasan() -> None:
     f = folder / "kawasan_demo.geojson"
     if not f.exists():
         f.write_text(json.dumps(KAWASAN, indent=2), encoding="utf-8")
-    analysis_svc.protected_areas.cache_clear()
+    kawasan_svc.clear_caches()
 
 
 def seed(reset: bool = False) -> dict:
@@ -177,7 +178,8 @@ def seed(reset: bool = False) -> dict:
                              "ai_watershed" if rng.random() < 0.6 else "manual")
 
         for p in plots:
-            plot_svc.apply_analysis(db, p, force_demo=True)
+            # kebun contoh fiktif: kawasan dicek ke peta ilustrasi saja agar demo selalu sama
+            plot_svc.apply_analysis(db, p, force_demo=True, kawasan_policy="lokal")
             # analisis lama dibuat seolah-olah dijalankan saat kebun didaftarkan
             p.analyses[0].created_at = p.created_at + timedelta(minutes=3)
 

@@ -35,6 +35,20 @@ TS_CACHE_DIR = DATA_DIR / "ts_cache"
 SAM_MODEL_TYPE = os.getenv("PK_SAM_MODEL", "vit_b")
 SAM_CHECKPOINT = Path(os.getenv("PK_SAM_CHECKPOINT", BASE_DIR / "models" / "sam_vit_b_01ec64.pth"))
 
-CORS_ORIGINS = os.getenv("PK_CORS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+# Status kawasan hutan otomatis dari peta resmi Kementerian Kehutanan (ArcGIS REST, SIGAP).
+#   auto   = peta online Kemenhut (hasil disimpan di cache) + GeoJSON lokal; bila offline pakai cache/lokal
+#   online = hanya peta Kemenhut + cache
+#   lokal  = hanya GeoJSON di data/kawasan/ (tanpa internet)
+KAWASAN_SOURCE = os.getenv("PK_KAWASAN_SOURCE", "auto").lower()
+KAWASAN_URL = os.getenv(
+    "PK_KAWASAN_URL",
+    "https://geoportal.menlhk.go.id/server/rest/services/SIGAP_Interaktif/Kawasan_Hutan/MapServer",
+).rstrip("/")
+# id layer yang dipakai (mis. "0" atau "0,3"); kosong = dipilih otomatis dari nama layer
+KAWASAN_LAYERS = [int(x) for x in os.getenv("PK_KAWASAN_LAYERS", "").split(",") if x.strip().isdigit()]
+KAWASAN_TIMEOUT = float(os.getenv("PK_KAWASAN_TIMEOUT", "10"))
+KAWASAN_CACHE_DIR = DATA_DIR / "kawasan_cache"
+
+CORS_ORIGINS =os.getenv("PK_CORS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
 
 APP_VERSION = "1.0.0"

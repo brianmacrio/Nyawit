@@ -1,6 +1,6 @@
 # Validasi teknis algoritma PasporKebun
 
-Dibuat otomatis oleh `python -m app.scripts.validate` pada 2026-11-08.
+Dibuat otomatis oleh `python -m app.scripts.validate` pada 2026-11-10.
 Data uji: deret NDVI **simulasi** Sentinel-2 berlabel (6 skenario x 100 deret = 600 deret, awan & derau acak) dan citra sintetis kebun (10 adegan x 4 klik).
 Angka ini membuktikan algoritma bekerja sesuai rancangan; akurasi lapangan perlu diukur dengan data referensi nyata.
 
@@ -13,7 +13,7 @@ Angka ini membuktikan algoritma bekerja sesuai rancangan; akurasi lapangan perlu
 | F1 | 100.0% |
 | Galat tanggal pembukaan (median) | 7 hari |
 | Tahun tanam tepat +-1 tahun | 98.0% |
-| Waktu komputasi per kebun (median, CPU) | 24.0 ms |
+| Waktu komputasi per kebun (median, CPU) | 27.8 ms |
 | **Uji ketahanan** (derau 2,5x, sisa awan +, 50% citra hilang): presisi / recall / F1 | 98.5% / 99.5% / 99.0% |
 
 Pembanding literatur (data Landsat nyata, Tiongkok, 2025): COLD F1 81,8%, CCDC ~76,5%, BFAST 70,6%.
@@ -35,7 +35,7 @@ Pembanding literatur (data Landsat nyata, Tiongkok, 2025): COLD F1 81,8%, CCDC ~
 |---|---|
 | IoU rata-rata | 0.928 |
 | IoU minimum | 0.584 |
-| Waktu per klik (median, CPU) | 1080 ms |
+| Waktu per klik (median, CPU) | 1148 ms |
 
 Pembanding literatur: SAM zero-shot pada lahan petani kecil (citra 2 m, India) IoU rata-rata 0,71.
 Citra sintetis lebih bersih dari citra nyata, jadi angka di atas adalah batas atas.

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { CircleCheck, CircleHelp, CircleMinus, CircleAlert, Download, Printer, RefreshCw, X } from "lucide-react";
 import { api } from "../lib/api";
-import { dateLabel, ha } from "../lib/format";
+import { dateLabel, ha, KAWASAN_SOURCE_SHORT, kawasanText } from "../lib/format";
 import type { EvidenceItem, PlotDetail } from "../lib/types";
 import { NdviChart } from "./NdviChart";
 import { Emblem, Notice, Spinner, Stamp } from "./ui";
@@ -132,6 +132,15 @@ export function PassportPanel({
             <dt>Cara menggambar batas</dt>
             <dd>{plot.delineation_method === "manual" ? "Manual" : "Draf AI, dikoreksi petani"}</dd>
           </div>
+          {a?.evidence.protected && (
+            <div className="span-2">
+              <dt>Status kawasan hutan</dt>
+              <dd style={{ color: a.evidence.protected.pct > 5 ? "var(--risiko)" : undefined }}>
+                {kawasanText(a.evidence.protected)}{" "}
+                <span className="faint small">({KAWASAN_SOURCE_SHORT[a.evidence.protected.source ?? ""] ?? "peta kawasan"})</span>
+              </dd>
+            </div>
+          )}
         </dl>
       </div>
 

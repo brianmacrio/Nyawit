@@ -6,8 +6,8 @@ import { GeoJSON, MapContainer, Polygon, Tooltip, useMap, useMapEvents } from "r
 import { useSearchParams } from "react-router-dom";
 import { MousePointerClick, PenLine, Plus, Search, Sparkles } from "lucide-react";
 import { api, ApiError } from "../lib/api";
-import { ha, RISK_COLOR, riskLabel } from "../lib/format";
-import type { DelineateResult, GeoPolygon, Meta, Overlap, PlotDetail, PlotSummary, ProtectedArea, Risk } from "../lib/types";
+import { ha, KAWASAN_SOURCE_SHORT, kawasanText, RISK_COLOR, riskLabel } from "../lib/format";
+import type { DelineateResult, GeoPolygon, KawasanInfo, Meta, OverlapCheck, PlotDetail, PlotSummary, ProtectedArea, Risk } from "../lib/types";
 import { BaseLayers } from "../components/MapBase";
 import { PassportPanel } from "../components/PassportPanel";
 import { Notice, Spinner, StatusTag } from "../components/ui";
@@ -208,7 +208,7 @@ export default function PetaKebun() {
   return (
     <div className={`map-page ${showDrawer ? "has-drawer" : ""}`}>
       <MapContainer center={initial.c} zoom={initial.z} zoomControl={false} style={{ position: "absolute", inset: 0 }}>
-        <BaseLayers />
+        <BaseLayers kawasan={meta?.kawasan && meta.kawasan.policy !== "lokal" ? meta.kawasan : null} />
         <FlyTo target={flyTarget} />
         <PickHandler active={mode === "pick"} onPick={onPick} />
         <DraftLayer draft={draft} mode={mode} onChange={(g) => { setDraft(g); if (mode === "draw") setMode("edit"); }} />
@@ -301,7 +301,12 @@ export default function PetaKebun() {
         <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.rendah, background: "#1e7a4b44" }} /> {riskLabel("rendah")}</div>
         <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.perlu_cek, background: "#b7791f44" }} /> {riskLabel("perlu_cek")}</div>
         <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.tinggi, background: "#b3261e44" }} /> {riskLabel("tinggi")}</div>
-        <div className="legend-row"><i className="swatch" style={{ borderColor: "#ff6b5e", borderStyle: "dashed" }} /> Kawasan konservasi (ilustrasi)</div>
+        {areas.length > 0 && (
+          <div className="legend-row">
+            <i className="swatch" style={{ borderColor: "#ff6b5e", borderStyle: "dashed" }} />{" "}
+            {areas.every((a) => a.is_demo) ? "Kawasan konservasi (ilustrasi)" : "Kawasan hutan (peta lokal)"}
+          </div>
+        )}
       </div>
 
       {showDrawer && (
@@ -366,15 +371,27 @@ function NewPlotForm({
   onSaved: (d: PlotDetail) => void;
 }) {
   const [form, setForm] = useState({ farmer_name: "", village: "Sungai Harapan", label: "Kebun", planting_year_declared: "", witness: "", demo_scenario: "", consent: false });
-  const [check, setCheck] = useState<{ area_ha: number; overlaps: Overlap[]; protected: { pct: number; name: string | null } } | null>(null);
+  const [check, setCheck] = useState<OverlapCheck | null>(null);
+  const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
 
   useEffect(() => {
     if (!draft) return;
-    const t = setTimeout(() => api.checkOverlap(draft).then(setCheck).catch(() => setCheck(null)), 350);
-    return () => clearTimeout(t);
+    let live = true;
+    const t = setTimeout(() => {
+      setChecking(true);
+      api
+        .checkOverlap(draft)
+        .then((r) => live && setCheck(r))
+        .catch(() => live && setCheck(null))
+        .finally(() => live && setChecking(false));
+    }, 350);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
   }, [draft]);
 
   const submit = async (e: React.FormEvent) => {
@@ -431,16 +448,14 @@ function NewPlotForm({
         </div>
       )}
       {aiErr && !ai?.polygon && draft && <div className="section"><Notice kind="warn">{aiErr}</Notice></div>}
-      {check && (check.overlaps.length > 0 || check.protected.pct > 0) && (
+      {draft && (checking || check) && (
         <div className="section" style={{ display: "grid", gap: 8 }}>
-          {check.overlaps.map((o) => (
+          {check?.overlaps.map((o) => (
             <Notice key={o.plot_id} kind="danger">
               Bertumpuk {ha(o.overlap_ha)} dengan kebun {o.code} milik {o.farmer}. Sepakati batas dengan pemilik sebelah, lalu geser garisnya.
             </Notice>
           ))}
-          {check.protected.pct > 0 && (
-            <Notice kind="danger">{check.protected.pct}% kebun masuk {check.protected.name}. Kebun akan berstatus berisiko (legalitas).</Notice>
-          )}
+          {checking && !check ? <Spinner label="Mengecek status kawasan hutan di peta Kemenhut…" /> : check && <KawasanNotice k={check.protected} />}
         </div>
       )}
       <div className="section" style={{ display: "grid", gap: 12 }}>
@@ -475,4 +490,34 @@ function NewPlotForm({
       </div>
     </form>
   );
+}
+
+/** Status kawasan hutan saat kebun digambar: hasil cek otomatis ke peta Kemenhut. */
+function KawasanNotice({ k }: { k: KawasanInfo }) {
+  const src = KAWASAN_SOURCE_SHORT[k.source ?? "tidak_ada"] ?? "peta kawasan";
+  const pct = Math.round(k.pct);
+  if (k.pct > 5)
+    return (
+      <Notice kind="danger">
+        <strong>{kawasanText(k)}</strong> menurut {src}
+        {k.name && k.name !== k.label ? ` (${k.name})` : ""}. Kebun akan berstatus berisiko karena aspek legalitas lahan.
+      </Notice>
+    );
+  if (k.pct > 0)
+    return (
+      <Notice kind="warn">
+        {pct < 1 ? "Sedikit" : `${pct}%`} bagian kebun bersinggungan dengan batas {k.label ?? "kawasan hutan"} ({src}). Bisa karena
+        ketelitian peta; pastikan patok batas di lapangan.
+      </Notice>
+    );
+  if ((k.unknown_pct ?? 0) > 5)
+    return <Notice kind="warn">Kebun berada di poligon {src} yang fungsinya belum terbaca. Status akan menjadi perlu cek.</Notice>;
+  if (k.source === "tidak_ada" || (k.warnings?.length && k.source !== "kemenhut"))
+    return (
+      <Notice kind="info">
+        Status kawasan hutan belum bisa dicek ke peta Kemenhut (layanan tidak terjangkau)
+        {k.source === "ilustrasi" ? "; sementara memakai peta ilustrasi demo" : ""}. Akan dicek ulang saat analisis.
+      </Notice>
+    );
+  return <Notice kind="ok">{kawasanText(k)} menurut {src}.</Notice>;
 }

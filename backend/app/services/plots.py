@@ -132,8 +132,16 @@ def overlaps(db: Session, geom: dict, exclude_id: int | None = None) -> list[dic
     return out
 
 
-def apply_analysis(db: Session, p: Plot, force_demo: bool = False) -> Analysis:
-    r = analysis_svc.run(p.geometry, p.code, p.scenario, force_demo=force_demo)
+def kawasan_policy_for(p: Plot) -> str | None:
+    """Kebun contoh fiktif dari seed tetap memakai peta ilustrasi saat dianalisis ulang."""
+    prev = p.analyses[0] if p.analyses else None
+    prot = (prev.evidence or {}).get("protected") if prev else None
+    return "lokal" if isinstance(prot, dict) and prot.get("policy") == "lokal" else None
+
+
+def apply_analysis(db: Session, p: Plot, force_demo: bool = False, kawasan_policy: str | None = None) -> Analysis:
+    policy = kawasan_policy or kawasan_policy_for(p)
+    r = analysis_svc.run(p.geometry, p.code, p.scenario, force_demo=force_demo, kawasan_policy=policy)
     a = Analysis(
         plot_id=p.id, risk_level=r["risk_level"], headline=r["headline"], confidence=r["confidence"],
         evidence=r["evidence"], timeseries=r["timeseries"], data_source=r["data_source"], compute_ms=r["compute_ms"],

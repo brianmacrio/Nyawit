@@ -1,52 +1,40 @@
 """Orkestrasi analisis satu kebun: ambil data satelit -> time series AI -> keputusan."""
 from __future__ import annotations
 
-import json
 import time
-from functools import lru_cache
-from pathlib import Path
 
-from ..config import DATA_DIR, EUDR_CUTOFF, SATELLITE_MODE
-from . import evidence, geo, timeseries
+from ..config import EUDR_CUTOFF, SATELLITE_MODE
+from . import evidence, geo, kawasan, timeseries
 from .satellite import demo
 
 
-@lru_cache(maxsize=1)
 def protected_areas() -> list[dict]:
-    """Memuat semua GeoJSON kawasan hutan/konservasi di data/kawasan/*.geojson."""
-    out = []
-    folder = DATA_DIR / "kawasan"
-    for p in sorted(Path(folder).glob("*.geojson")) if folder.exists() else []:
-        fc = json.loads(p.read_text(encoding="utf-8"))
-        for f in fc.get("features", []):
-            if f.get("geometry", {}).get("type") == "Polygon":
-                out.append({"name": f.get("properties", {}).get("name", p.stem),
-                            "status": f.get("properties", {}).get("status", ""),
-                            "is_demo": bool(f.get("properties", {}).get("is_demo", False)),
-                            "geometry": f["geometry"]})
-    return out
+    """Poligon kawasan dari GeoJSON lokal (peta resmi unduhan pengguna atau ilustrasi demo) untuk peta."""
+    return [{k: v for k, v in a.items() if k != "file"} for a in kawasan.local_areas()]
 
 
-def protected_overlap(geom: dict) -> tuple[float, str | None]:
-    best, name = 0.0, None
-    for pa in protected_areas():
-        frac = geo.overlap_fraction(geom, pa["geometry"])
-        if frac > best:
-            best, name = frac, pa["name"]
-    return round(best * 100, 1), name
+
+def kawasan_check(geom: dict, policy: str | None = None) -> dict:
+    """Status kawasan hutan kebun: peta Kemenhut online/cache + GeoJSON lokal."""
+    return kawasan.lookup(geom, policy).to_dict()
 
 
-def scenario_for(geom: dict, requested: str | None) -> str:
+def protected_overlap(geom: dict, policy: str | None = None) -> tuple[float, str | None]:
+    r = kawasan.lookup(geom, policy)
+    return r.pct, r.name
+
+
+def scenario_for(geom: dict, requested: str | None, policy: str | None = None) -> str:
     if requested in demo.SCENARIOS:
         return requested
-    pct, _ = protected_overlap(geom)
-    return "kawasan_hutan" if pct > 5 else "sawit_tua_stabil"
+    pct, _ = protected_overlap(geom, policy)
+    return "kawasan_hutan" if pct > evidence.T_PROTECTED else "sawit_tua_stabil"
 
 
-def run(geom: dict, plot_code: str, scenario: str | None, force_demo: bool = False) -> dict:
+def run(geom: dict, plot_code: str, scenario: str | None, force_demo: bool = False, kawasan_policy: str | None = None) -> dict:
     t0 = time.perf_counter()
     lat, lng = geo.centroid(geom)
-    prot_pct, prot_name = protected_overlap(geom)
+    kw = kawasan_check(geom, kawasan_policy)
     mode = "demo" if force_demo else SATELLITE_MODE
     sources: list[str] = []
     warnings: list[str] = []
@@ -74,7 +62,9 @@ def run(geom: dict, plot_code: str, scenario: str | None, force_demo: bool = Fal
         sources.append("Lapisan bukti simulasi: " + demo.SCENARIOS[sc]["label"])
 
     ts = timeseries.detect_changes(dates, values, cutoff=EUDR_CUTOFF) if dates else None
-    decision = evidence.decide(layers or {}, ts, prot_pct)
+    decision = evidence.decide(layers or {}, ts, kw["pct"], kawasan=kw, strict=mode == "live")
+    warnings += kw["warnings"]
+    sources.append(kw["source_label"])
     ms = int((time.perf_counter() - t0) * 1000)
     return {
         "risk_level": decision.risk_level,
@@ -83,7 +73,7 @@ def run(geom: dict, plot_code: str, scenario: str | None, force_demo: bool = Fal
         "evidence": {
             **decision.to_dict(),
             "layers": layers,
-            "protected": {"pct": prot_pct, "name": prot_name},
+            "protected": kw,
             "sources": sources,
             "warnings": warnings,
             "cutoff": EUDR_CUTOFF.isoformat(),

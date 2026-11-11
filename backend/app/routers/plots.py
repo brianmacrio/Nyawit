@@ -37,14 +37,18 @@ def protected_areas():
 
 @router.post("/check-overlap")
 def check_overlap(body: OverlapIn, db: Session = Depends(get_db)):
+    """Dipanggil saat petani menggambar: tumpang tindih kebun lain + status kawasan hutan (peta Kemenhut)."""
     geom = body.geometry.model_dump()
-    prot_pct, prot_name = analysis_svc.protected_overlap(geom)
     from ..services import geo
 
+    policy = None
+    if body.exclude_plot_id:
+        p = db.get(Plot, body.exclude_plot_id)
+        policy = svc.kawasan_policy_for(p) if p else None
     return {
         "area_ha": round(geo.area_ha(geom), 3),
         "overlaps": svc.overlaps(db, geom, body.exclude_plot_id),
-        "protected": {"pct": prot_pct, "name": prot_name},
+        "protected": analysis_svc.kawasan_check(geom, policy),
     }
 
 

@@ -7,6 +7,7 @@ numpy>=1.26
 shapely>=2.0
 opencv-python-headless>=4.8
 pillow>=10.0
+truststore>=0.9 ; python_version >= "3.10"   # sertifikat HTTPS via penyimpanan OS (peta Kemenhut)
 scikit-learn>=1.3
 # Pengujian
 pytest>=7.4

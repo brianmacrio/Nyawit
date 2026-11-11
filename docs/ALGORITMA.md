@@ -60,6 +60,29 @@ dan disaksikan.
 - **Isolation Forest** (Liu et al. 2008) atas 5 fitur perilaku 90 hari per pengepul. Dipilih karena tidak butuh label
   kecurangan (memang belum ada datanya), ringan, dan bisa dijelaskan dengan z-score per fitur.
 
+## 5. Status kawasan hutan (legalitas)
+
+EUDR tidak hanya meminta bebas deforestasi, tetapi juga lahan yang legal menurut hukum negara asal. Di Indonesia, kebun di
+dalam kawasan hutan (konservasi, hutan lindung, hutan produksi) tanpa pelepasan kawasan tidak legal. Peta global (JRC, Hansen)
+tidak tahu status hukum ini, jadi kami membaca peta resmi:
+
+1. Sumber: layanan ArcGIS REST *Kawasan Hutan* Kementerian Kehutanan (SIGAP Interaktif, dasar Permen LHK 7/2021).
+2. Area kebun dibagi ke sel grid 0,01° (~1,1 km). Sel yang belum ada di cache diminta lewat operasi `identify` (cadangan:
+   `query` per layer), poligon digeneralisasi ~5 m, dipotong sebatas sel, lalu disimpan di disk. Cache membuat setiap sel
+   hanya diunduh sekali dan demo tetap jalan saat offline. Bila layanan gagal, aplikasi berhenti mencoba selama 5 menit
+   agar pendaftaran kebun tetap cepat.
+3. Fungsi kawasan dibaca dari domain kode layanan, teks/singkatan (Hutan Lindung, HPT, HPK, TN, APL, ...), atau tabel kode
+   buatan pengguna. Singkatan pendek hanya dibaca dari kolom fungsi, agar nama seperti "Kelompok Hutan Air ..." tidak
+   terbaca sebagai tubuh air.
+4. Persentase luas kebun per fungsi dihitung dengan irisan poligon (shapely). Aturan 0: > 5% di kawasan hutan → Berisiko,
+   dengan arahan penyelesaian sesuai fungsi (konservasi/HL berbeda dari hutan produksi). 0–5% hanya diberi catatan karena
+   bisa berasal dari ketelitian peta.
+5. Kejujuran data: bila peta tidak terjangkau atau fungsi tidak terbaca, paspor menulisnya terang-terangan; di mode live
+   status kebun menjadi Perlu cek, bukan Aman.
+
+Batasan: peta kawasan berskala kecil dan bisa tertinggal dari SK pelepasan terbaru. Karena itu hasil "masuk kawasan" adalah
+sinyal untuk diverifikasi (sertifikat, SK pelepasan, cek lapangan), bukan vonis.
+
 ## Sumber
 
 - Whisp: https://pypi.org/project/openforis-whisp/
@@ -72,3 +95,4 @@ dan disaksikan.
 - Delineate Anything: https://arxiv.org/abs/2504.02534
 - Satelligence × Fairtrade: https://the-european.eu/story-50128/
 - Koltiva × REA Kaltim: https://www.agtechnavigator.com/Article/2025/08/11/tackling-barriers-to-eudr-compliance-for-indonesian-smallholders
+- Layanan peta Kawasan Hutan Kemenhut (SIGAP): https://geoportal.menlhk.go.id/server/rest/services/SIGAP_Interaktif/Kawasan_Hutan/MapServer
