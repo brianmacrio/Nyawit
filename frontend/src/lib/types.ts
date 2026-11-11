@@ -18,6 +18,9 @@ export interface PlotSummary {
   boundary_confirmed: boolean;
   planting_year: number | null;
   delineation_method: string;
+  status_override?: boolean;
+  eudr_ready?: boolean;
+  readiness_missing?: number;
 }
 
 export interface EvidenceItem {
@@ -81,17 +84,217 @@ export interface Overlap {
   geometry: GeoPolygon | null;
 }
 
+export type SideKey = "utara" | "timur" | "selatan" | "barat";
+export type SideType = "parit" | "jalan" | "kebun" | "hutan" | "sungai" | "lainnya";
+export interface Side {
+  jenis: SideType;
+  tetangga?: string | null;
+}
+export interface Witness {
+  name: string;
+  relation: string;
+  at: string | null;
+}
+export type LandProof = "sertifikat" | "surat_desa" | "pernyataan";
+export type StdbStatus = "ada" | "proses" | "belum";
+
+export interface ReadinessCheck {
+  key: "lokasi" | "lahan" | "kawasan" | "hutan" | "verifikasi";
+  label: string;
+  ok: boolean;
+  detail: string;
+}
+export interface Precision {
+  level: number;
+  of: number;
+  label: string;
+  gps: boolean;
+  gps_accuracy_m: number | null;
+}
+export interface Readiness {
+  ready: boolean;
+  missing: number;
+  checks: ReadinessCheck[];
+  valid_until: string | null;
+  expired: boolean;
+  precision: Precision;
+}
+
+export interface InspectionBrief {
+  id: number;
+  batch: string;
+  reason: string;
+  status: "menunggu" | "selesai";
+  result: "sesuai" | "tidak_sesuai" | null;
+  notes: string | null;
+  inspector: string | null;
+  has_photo: boolean;
+  photo_distance_m: number | null;
+  created_at: string;
+  done_at: string | null;
+}
+
+export interface Inspection extends InspectionBrief {
+  plot_id: number;
+  plot_code: string;
+  farmer: string;
+  village: string;
+  area_ha: number;
+  centroid: [number, number];
+  risk_level: Risk | null;
+  reason_label: string;
+  photo_lat: number | null;
+  photo_lng: number | null;
+}
+
+export type EvidenceType = "sk_pelepasan" | "sertifikat" | "surat_desa" | "foto_lapangan" | "lainnya";
+export interface Appeal {
+  id: number;
+  plot_id: number;
+  plot_code: string;
+  farmer: string;
+  submitted_by: string;
+  reason: string;
+  evidence_type: EvidenceType;
+  status: "diajukan" | "diterima" | "ditolak";
+  original_risk: Risk | null;
+  new_risk: Risk | null;
+  decision_note: string | null;
+  decided_by: string | null;
+  created_at: string;
+  decided_at: string | null;
+  current_risk: Risk | null;
+  headline: string | null;
+}
+
+export interface AuditEvent {
+  id: number;
+  at: string;
+  actor: string;
+  role: string;
+  action: string;
+  entity: string;
+  entity_id: number | null;
+  summary: string;
+  hash: string;
+}
+
 export interface PlotDetail extends PlotSummary {
   planting_year_declared: number | null;
   planting_year_detected: number | null;
   planting_consistency: { declared: number; detected: number; message: string } | null;
   witness: string | null;
+  witnesses: Witness[];
+  boundary_sides: Partial<Record<SideKey, Side>>;
+  gps: { lat: number; lng: number; accuracy_m: number | null } | null;
+  land: {
+    proof: LandProof | null;
+    proof_label: string | null;
+    ref: string | null;
+    stdb_status: StdbStatus;
+    stdb_label: string;
+    stdb_number: string | null;
+    dispute: boolean;
+    dispute_note: string | null;
+  };
   consent: boolean;
   consent_at: string | null;
   created_at: string;
   analysis: Analysis | null;
   scenario: string | null;
+  override: { original: Risk; risk_level: Risk; reason: string; by: string; at: string } | null;
+  verification: { at: string | null; result: "sesuai" | "tidak_sesuai" | null; by: string | null };
+  readiness: Readiness;
+  inspections: InspectionBrief[];
+  appeals: Appeal[];
+  history: AuditEvent[];
   overlaps?: Overlap[];
+}
+
+export type Role = "koperasi" | "pengepul" | "pabrik" | "verifikator" | "admin";
+export interface User {
+  id: number;
+  username: string;
+  name: string;
+  role: Role;
+  role_label: string;
+  collector_id: number | null;
+  organisation: string | null;
+  is_demo: boolean;
+}
+export interface DemoAccount {
+  username: string;
+  name: string;
+  role: Role;
+  role_label: string;
+  organisation: string | null;
+}
+
+export interface ShipmentEntry {
+  plot_id: number;
+  plot_code: string;
+  village: string;
+  area_ha: number;
+  centroid: [number, number];
+  volume_kg: number;
+  n_purchases: number;
+  production_start: string;
+  production_end: string;
+  collectors: string[];
+  risk_level: Risk | null;
+  land_proof: LandProof | null;
+  stdb_status: StdbStatus;
+  verified: string | null;
+  precision_level: number;
+  failed_checks: string[];
+}
+export interface Shipment {
+  id: number;
+  code: string;
+  buyer: string;
+  destination: string;
+  period_start: string;
+  period_end: string;
+  created_by: string;
+  created_at: string;
+  summary: {
+    included_kg: number;
+    excluded_kg: number;
+    held_kg: number;
+    delivered_kg: number;
+    untraced_kg: number;
+    n_included: number;
+    n_excluded: number;
+    eligible_share: number | null;
+    production_start: string | null;
+    production_end: string | null;
+    cutoff: string;
+    rule: string;
+  };
+  plots?: ShipmentEntry[];
+  excluded?: ShipmentEntry[];
+}
+
+export interface PublicPassport {
+  code: string;
+  farmer: string;
+  village: string;
+  area_ha: number;
+  risk_level: Risk | null;
+  risk_headline: string | null;
+  eudr_ready: boolean;
+  checks: { label: string; ok: boolean }[];
+  valid_until: string | null;
+  analyzed_at: string | null;
+  precision: string;
+  note: string;
+}
+
+export interface FitResult {
+  geometry: GeoPolygon;
+  area_ha: number;
+  removed_ha: number;
+  neighbors: { code: string; farmer: string; overlap_ha: number }[];
 }
 
 export interface Flag {
@@ -168,6 +371,7 @@ export interface Dashboard {
     risk: Record<string, number>;
     eudr_ready: number;
     eudr_ready_share: number;
+    blockers: Partial<Record<ReadinessCheck["key"], number>>;
     traced_share_30d: number | null;
     delivered_t_30d: number;
     traced_t_30d: number;

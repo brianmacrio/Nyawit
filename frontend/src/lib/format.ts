@@ -25,7 +25,7 @@ export const dateTimeLabel = (iso: string) => {
 };
 
 export const RISK_LABEL: Record<Risk, string> = { rendah: "Aman", perlu_cek: "Perlu cek", tinggi: "Berisiko" };
-export const RISK_STAMP: Record<Risk, string> = { rendah: "AMAN EUDR", perlu_cek: "PERLU CEK", tinggi: "BERISIKO" };
+export const RISK_STAMP: Record<Risk, string> = { rendah: "AMAN", perlu_cek: "PERLU CEK", tinggi: "BERISIKO" };
 export const riskLabel = (r: Risk | null) => (r ? RISK_LABEL[r] : "Belum dicek");
 
 export const RISK_COLOR: Record<Risk | "none", string> = {

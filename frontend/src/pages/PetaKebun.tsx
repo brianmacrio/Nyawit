@@ -2,12 +2,28 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
-import { GeoJSON, MapContainer, Polygon, Tooltip, useMap, useMapEvents } from "react-leaflet";
+import { Circle, CircleMarker, GeoJSON, MapContainer, Polygon, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import { useSearchParams } from "react-router-dom";
-import { MousePointerClick, PenLine, Plus, Search, Sparkles } from "lucide-react";
+import { BadgeCheck, Crosshair, LocateFixed, MousePointerClick, PenLine, Plus, Scissors, Search, Sparkles } from "lucide-react";
 import { api, ApiError } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import { ha, KAWASAN_SOURCE_SHORT, kawasanText, RISK_COLOR, riskLabel } from "../lib/format";
-import type { DelineateResult, GeoPolygon, KawasanInfo, Meta, OverlapCheck, PlotDetail, PlotSummary, ProtectedArea, Risk } from "../lib/types";
+import { averageFix, distanceM, getFix, type GpsFix, watchFix } from "../lib/gps";
+import type {
+  DelineateResult,
+  GeoPolygon,
+  KawasanInfo,
+  LandProof,
+  Meta,
+  OverlapCheck,
+  PlotDetail,
+  PlotSummary,
+  ProtectedArea,
+  Risk,
+  SideKey,
+  SideType,
+  StdbStatus,
+} from "../lib/types";
 import { BaseLayers } from "../components/MapBase";
 import { PassportPanel } from "../components/PassportPanel";
 import { Notice, Spinner, StatusTag } from "../components/ui";
@@ -20,7 +36,7 @@ const toGeo = (latlngs: L.LatLng[]): GeoPolygon => {
   return { type: "Polygon", coordinates: [ring] };
 };
 
-type Mode = "idle" | "pick" | "loading" | "edit" | "draw";
+type Mode = "idle" | "start" | "locating" | "pick" | "loading" | "edit" | "draw";
 const SCENARIOS: [string, string][] = [
   ["", "Otomatis (sesuai lokasi)"],
   ["sawit_tua_stabil", "Sawit stabil sejak sebelum 2018"],
@@ -30,7 +46,7 @@ const SCENARIOS: [string, string][] = [
   ["data_kurang", "Citra berawan, bukti kurang"],
 ];
 
-function FlyTo({ target }: { target: GeoPolygon | null }) {
+function FlyTo({ target, point }: { target: GeoPolygon | null; point?: [number, number] | null }) {
   const map = useMap();
   useEffect(() => {
     if (!target) return;
@@ -41,6 +57,33 @@ function FlyTo({ target }: { target: GeoPolygon | null }) {
       duration: 0.8,
     });
   }, [target, map]);
+  useEffect(() => {
+    if (point) map.flyTo(point, 18, { duration: 0.8 });
+  }, [point, map]);
+  return null;
+}
+
+/** Titik biru "Anda di sini" + lingkaran akurasi GPS. */
+function BlueDot({ fix }: { fix: GpsFix | null }) {
+  if (!fix) return null;
+  return (
+    <>
+      {fix.accuracy > 0 && <Circle center={[fix.lat, fix.lng]} radius={fix.accuracy} pathOptions={{ color: "#4ea4ff", weight: 1, fillOpacity: 0.12 }} interactive={false} />}
+      <CircleMarker center={[fix.lat, fix.lng]} radius={7} pathOptions={{ color: "#fff", weight: 2.5, fillColor: "#1a73e8", fillOpacity: 1 }} interactive={false}>
+        <Tooltip permanent direction="top" offset={[0, -8]} className="pk-label">Anda di sini{fix.simulated ? " (simulasi)" : ""}</Tooltip>
+      </CircleMarker>
+    </>
+  );
+}
+
+function CenterReader({ onReady }: { onReady: (get: () => [number, number]) => void }) {
+  const map = useMap();
+  useEffect(() => {
+    onReady(() => {
+      const c = map.getCenter();
+      return [c.lat, c.lng];
+    });
+  }, [map, onReady]);
   return null;
 }
 
@@ -106,6 +149,8 @@ function DraftLayer({ draft, mode, onChange }: { draft: GeoPolygon | null; mode:
 }
 
 export default function PetaKebun() {
+  const { can } = useAuth();
+  const canEdit = can("koperasi");
   const [plots, setPlots] = useState<PlotSummary[]>([]);
   const [areas, setAreas] = useState<ProtectedArea[]>([]);
   const [meta, setMeta] = useState<Meta | null>(null);
@@ -113,12 +158,18 @@ export default function PetaKebun() {
   const [justAnalyzed, setJustAnalyzed] = useState(false);
   const [flyTarget, setFlyTarget] = useState<GeoPolygon | null>(null);
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<Risk | "all">("all");
+  const [filter, setFilter] = useState<Risk | "all" | "siap">("all");
   const [mode, setMode] = useState<Mode>("idle");
   const [draft, setDraft] = useState<GeoPolygon | null>(null);
   const [ai, setAi] = useState<DelineateResult | null>(null);
   const [aiErr, setAiErr] = useState<string | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [fix, setFix] = useState<GpsFix | null>(null);
+  const [gpsProgress, setGpsProgress] = useState<{ n: number; best: number | null; secs: number } | null>(null);
+  const [gpsErr, setGpsErr] = useState<string | null>(null);
+  const [flyPoint, setFlyPoint] = useState<[number, number] | null>(null);
+  const stopWatch = useRef<(() => void) | null>(null);
+  const centerGetter = useRef<() => [number, number]>(() => CENTER);
   const [params, setParams] = useSearchParams();
 
   const load = useCallback(async () => {
@@ -154,13 +205,16 @@ export default function PetaKebun() {
     const s = q.trim().toLowerCase();
     return plots.filter(
       (p) =>
-        (filter === "all" || p.risk_level === filter) &&
+        (filter === "all" || (filter === "siap" ? p.eudr_ready : p.risk_level === filter)) &&
         (!s || p.farmer.name.toLowerCase().includes(s) || p.code.toLowerCase().includes(s) || p.farmer.village.toLowerCase().includes(s)),
     );
   }, [plots, q, filter]);
   const counts = useMemo(() => {
-    const c: Record<string, number> = { rendah: 0, perlu_cek: 0, tinggi: 0 };
-    plots.forEach((p) => p.risk_level && c[p.risk_level]++);
+    const c: Record<string, number> = { rendah: 0, perlu_cek: 0, tinggi: 0, siap: 0 };
+    plots.forEach((p) => {
+      if (p.risk_level) c[p.risk_level]++;
+      if (p.eudr_ready) c.siap++;
+    });
     return c;
   }, [plots]);
 
@@ -169,13 +223,78 @@ export default function PetaKebun() {
     setDraft(null);
     setAi(null);
     setAiErr(null);
-    setMode("pick");
+    setFix(null);
+    setGpsErr(null);
+    setMode("start");
   };
   const cancelAdd = () => {
+    stopWatch.current?.();
     setMode("idle");
     setDraft(null);
     setAi(null);
     setAiErr(null);
+    setFix(null);
+    setGpsProgress(null);
+    setGpsErr(null);
+  };
+
+  /** "Saya sedang di kebun": kumpulkan beberapa bacaan GPS, rata-ratakan yang paling akurat. */
+  const locate = () => {
+    setGpsErr(null);
+    setMode("locating");
+    const samples: GpsFix[] = [];
+    const t0 = Date.now();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      window.clearTimeout(timer);
+      stopWatch.current?.();
+      setGpsProgress(null);
+      const avg = averageFix(samples);
+      if (!avg || avg.accuracy > 60) {
+        setGpsErr(
+          avg
+            ? `Sinyal GPS kurang tepat (±${Math.round(avg.accuracy)} m). Coba di tempat lebih terbuka, atau tunjuk kebun di peta.`
+            : "Tidak ada bacaan GPS. Tunjuk kebun di peta, atau simulasikan posisi.",
+        );
+        setMode("start");
+        return;
+      }
+      applyFix(avg);
+    };
+    const timer = window.setTimeout(finish, 20000);
+    const stop = watchFix(
+      (f) => {
+        samples.push(f);
+        const best = Math.min(...samples.map((x) => x.accuracy));
+        setGpsProgress({ n: samples.length, best, secs: Math.round((Date.now() - t0) / 1000) });
+        if (samples.length >= 5 && best <= 10) finish();
+      },
+      (msg) => {
+        if (done) return;
+        done = true;
+        window.clearTimeout(timer);
+        stopWatch.current?.();
+        setGpsProgress(null);
+        setGpsErr(msg);
+        setMode("start");
+      },
+    );
+    stopWatch.current = () => {
+      done = true;
+      window.clearTimeout(timer);
+      stop();
+    };
+  };
+  const simulate = () => {
+    const [lat, lng] = centerGetter.current();
+    applyFix({ lat, lng, accuracy: 0, simulated: true });
+  };
+  const applyFix = (f: GpsFix) => {
+    setFix(f);
+    setFlyPoint([f.lat, f.lng]);
+    onPick(f.lat, f.lng);
   };
 
   const onPick = async (lat: number, lng: number) => {
@@ -209,7 +328,9 @@ export default function PetaKebun() {
     <div className={`map-page ${showDrawer ? "has-drawer" : ""}`}>
       <MapContainer center={initial.c} zoom={initial.z} zoomControl={false} style={{ position: "absolute", inset: 0 }}>
         <BaseLayers kawasan={meta?.kawasan && meta.kawasan.policy !== "lokal" ? meta.kawasan : null} />
-        <FlyTo target={flyTarget} />
+        <FlyTo target={flyTarget} point={flyPoint} />
+        <CenterReader onReady={useCallback((g: () => [number, number]) => { centerGetter.current = g; }, [])} />
+        <BlueDot fix={mode !== "idle" ? fix : null} />
         <PickHandler active={mode === "pick"} onPick={onPick} />
         <DraftLayer draft={draft} mode={mode} onChange={(g) => { setDraft(g); if (mode === "draw") setMode("edit"); }} />
         {areas.map((a) => (
@@ -253,6 +374,7 @@ export default function PetaKebun() {
             <button className="chip" aria-pressed={filter === "rendah"} onClick={() => setFilter("rendah")}>Aman {counts.rendah}</button>
             <button className="chip" aria-pressed={filter === "perlu_cek"} onClick={() => setFilter("perlu_cek")}>Perlu cek {counts.perlu_cek}</button>
             <button className="chip" aria-pressed={filter === "tinggi"} onClick={() => setFilter("tinggi")}>Berisiko {counts.tinggi}</button>
+            <button className="chip" aria-pressed={filter === "siap"} onClick={() => setFilter("siap")}>Siap EUDR {counts.siap}</button>
           </div>
         </header>
         {loadErr && <div style={{ padding: "0 16px 12px" }}><Notice kind="danger">{loadErr}</Notice></div>}
@@ -260,7 +382,10 @@ export default function PetaKebun() {
           {visible.map((p) => (
             <li key={p.id}>
               <button className={`plot-item ${selected?.id === p.id ? "sel" : ""}`} onClick={() => open(p.id)}>
-                <span className="name">{p.farmer.name}</span>
+                <span className="name">
+                  {p.farmer.name}
+                  {p.eudr_ready && <BadgeCheck size={15} color="var(--aman)" aria-label="Siap EUDR" style={{ marginLeft: 5, verticalAlign: -2 }} />}
+                </span>
                 <StatusTag risk={p.risk_level} />
                 <span className="sub num">{p.code}, {ha(p.area_ha)}, {p.farmer.village}</span>
               </button>
@@ -272,14 +397,56 @@ export default function PetaKebun() {
 
       <div className="float map-toolbar">
         {mode === "idle" ? (
-          <button className="btn btn-primary" onClick={startAdd}>
-            <Plus /> Daftarkan kebun
-          </button>
+          canEdit ? (
+            <button className="btn btn-primary" onClick={startAdd}>
+              <Plus /> Daftarkan kebun
+            </button>
+          ) : (
+            <span className="small muted" style={{ padding: "8px 12px" }}>Pendaftaran kebun dilakukan petugas koperasi.</span>
+          )
         ) : (
           <button className="btn" onClick={cancelAdd}>Batal</button>
         )}
       </div>
 
+      {mode === "start" && (
+        <div className="float start-card" role="dialog" aria-label="Cara menentukan lokasi kebun">
+          <h3>Di mana kebunnya?</h3>
+          <button className="start-opt primary" onClick={locate}>
+            <LocateFixed aria-hidden="true" />
+            <span><strong>Saya sedang di kebun</strong><span className="small">Pakai GPS ponsel. AI menggambar batas dari titik Anda; cukup untuk EUDR bila kebun di bawah 4 ha.</span></span>
+          </button>
+          <button className="start-opt" onClick={() => setMode("pick")}>
+            <MousePointerClick aria-hidden="true" />
+            <span><strong>Tunjuk di peta</strong><span className="small">Klik tengah kebun di citra satelit.</span></span>
+          </button>
+          <button className="start-opt" onClick={() => setMode("draw")}>
+            <PenLine aria-hidden="true" />
+            <span><strong>Gambar manual</strong><span className="small">Klik sudut-sudut kebun satu per satu.</span></span>
+          </button>
+          {gpsErr && (
+            <>
+              <Notice kind="warn">{gpsErr}</Notice>
+              <button className="btn btn-quiet" onClick={simulate}>
+                <Crosshair /> Pakai titik tengah peta (simulasi posisi)
+              </button>
+            </>
+          )}
+          {!gpsErr && meta?.satellite_mode !== "live" && (
+            <button className="btn btn-quiet small" onClick={simulate} title="Untuk demo di laptop yang tidak punya GPS">
+              <Crosshair /> Demo di laptop: simulasikan posisi di tengah peta
+            </button>
+          )}
+        </div>
+      )}
+      {mode === "locating" && (
+        <div className="banner" role="status">
+          <Spinner
+            label={gpsProgress ? `Membaca GPS… ${gpsProgress.n} bacaan, terbaik ±${Math.round(gpsProgress.best ?? 0)} m (${gpsProgress.secs} dtk)` : "Menunggu izin dan sinyal GPS…"}
+          />
+          <button className="btn" onClick={() => { stopWatch.current?.(); setMode("start"); }}>Batal</button>
+        </div>
+      )}
       {(mode === "pick" || mode === "loading" || mode === "draw") && (
         <div className="banner" role="status">
           {mode === "pick" && (
@@ -318,8 +485,10 @@ export default function PetaKebun() {
               aiErr={aiErr}
               loading={mode === "loading"}
               demo={meta?.satellite_mode !== "live"}
+              fix={fix}
+              onDraft={setDraft}
               onCancel={cancelAdd}
-              onRedraw={() => { setDraft(null); setMode("pick"); }}
+              onRedraw={() => { setDraft(null); setMode("start"); }}
               onSaved={async (d) => {
                 cancelAdd();
                 await load();
@@ -351,12 +520,54 @@ export default function PetaKebun() {
   );
 }
 
+const SIDE_KEYS: SideKey[] = ["utara", "timur", "selatan", "barat"];
+const SIDE_OPTS: [SideType | "", string][] = [
+  ["", "Pilih…"],
+  ["parit", "Parit / kanal"],
+  ["jalan", "Jalan"],
+  ["kebun", "Kebun tetangga"],
+  ["hutan", "Hutan / semak"],
+  ["sungai", "Sungai"],
+  ["lainnya", "Lainnya"],
+];
+const RELATIONS = ["ketua kelompok tani", "tetangga utara", "tetangga timur", "tetangga selatan", "tetangga barat", "kepala dusun", "saksi lain"];
+const LAND_OPTS: [LandProof | "", string][] = [
+  ["", "Belum ada"],
+  ["sertifikat", "Sertifikat tanah (SHM/BPN)"],
+  ["surat_desa", "Surat keterangan desa (SKT/SKGR)"],
+  ["pernyataan", "Pernyataan penguasaan fisik + 2 saksi"],
+];
+const STDB_OPTS: [StdbStatus, string][] = [
+  ["belum", "Belum diurus"],
+  ["proses", "Sedang diurus"],
+  ["ada", "Sudah terbit"],
+];
+
+/** Mengganti titik sudut poligon yang paling dekat dengan posisi GPS (petani berdiri di sudut kebun). */
+function snapCorner(g: GeoPolygon, at: [number, number]): { geom: GeoPolygon; moved: number } {
+  const ring = g.coordinates[0].slice(0, -1);
+  let best = 0;
+  let bestD = Infinity;
+  ring.forEach(([lng, lat], i) => {
+    const d = distanceM([lat, lng], at);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  });
+  const next = ring.map((c, i) => (i === best ? [Number(at[1].toFixed(7)), Number(at[0].toFixed(7))] : c));
+  next.push(next[0]);
+  return { geom: { type: "Polygon", coordinates: [next] }, moved: bestD };
+}
+
 function NewPlotForm({
   draft,
   ai,
   aiErr,
   loading,
   demo,
+  fix,
+  onDraft,
   onCancel,
   onRedraw,
   onSaved,
@@ -366,16 +577,44 @@ function NewPlotForm({
   aiErr: string | null;
   loading: boolean;
   demo: boolean;
+  fix: GpsFix | null;
+  onDraft: (g: GeoPolygon) => void;
   onCancel: () => void;
   onRedraw: () => void;
   onSaved: (d: PlotDetail) => void;
 }) {
-  const [form, setForm] = useState({ farmer_name: "", village: "Sungai Harapan", label: "Kebun", planting_year_declared: "", witness: "", demo_scenario: "", consent: false });
+  const [form, setForm] = useState({
+    farmer_name: "",
+    village: "Sungai Harapan",
+    label: "Kebun",
+    planting_year_declared: "",
+    demo_scenario: "",
+    consent: false,
+    land_proof: "" as LandProof | "",
+    land_proof_ref: "",
+    stdb_status: "belum" as StdbStatus,
+    stdb_number: "",
+    dispute: false,
+    dispute_note: "",
+  });
+  const [sides, setSides] = useState<Record<SideKey, { jenis: SideType | ""; tetangga: string }>>({
+    utara: { jenis: "", tetangga: "" },
+    timur: { jenis: "", tetangga: "" },
+    selatan: { jenis: "", tetangga: "" },
+    barat: { jenis: "", tetangga: "" },
+  });
+  const [wits, setWits] = useState([
+    { name: "", relation: "ketua kelompok tani" },
+    { name: "", relation: "tetangga utara" },
+  ]);
   const [check, setCheck] = useState<OverlapCheck | null>(null);
   const [checking, setChecking] = useState(false);
+  const [fitting, setFitting] = useState(false);
+  const [fitMsg, setFitMsg] = useState<string | null>(null);
+  const [cornerMsg, setCornerMsg] = useState<{ kind: "ok" | "warn"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const set = (k: keyof typeof form, v: string | boolean) => setForm((f) => ({ ...f, [k]: v }));
+  const set = <K extends keyof typeof form>(k: K, v: (typeof form)[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   useEffect(() => {
     if (!draft) return;
@@ -394,6 +633,48 @@ function NewPlotForm({
     };
   }, [draft]);
 
+  const fit = async () => {
+    if (!draft) return;
+    setFitting(true);
+    setFitMsg(null);
+    try {
+      const r = await api.fitNeighbors(draft);
+      onDraft(r.geometry);
+      setFitMsg(`Dipotong ${ha(r.removed_ha)} mengikuti batas ${r.neighbors.map((n) => `${n.code} (${n.farmer})`).join(", ")}. Tetap konfirmasi dengan pemilik sebelah.`);
+    } catch (e) {
+      setFitMsg((e as Error).message);
+    } finally {
+      setFitting(false);
+    }
+  };
+
+  const corner = async () => {
+    if (!draft) return;
+    setCornerMsg(null);
+    try {
+      const f = await getFix();
+      const r = snapCorner(draft, [f.lat, f.lng]);
+      if (r.moved > 60) {
+        setCornerMsg({ kind: "warn", text: `Posisi Anda ${Math.round(r.moved)} m dari sudut terdekat. Berdirilah tepat di sudut kebun lalu coba lagi.` });
+        return;
+      }
+      onDraft(r.geom);
+      setCornerMsg({ kind: "ok", text: `Sudut digeser ${Math.round(r.moved)} m ke posisi GPS Anda (±${Math.round(f.accuracy)} m).` });
+    } catch (e) {
+      setCornerMsg({ kind: "warn", text: (e as Error).message });
+    }
+  };
+
+  const filledWits = wits.filter((w) => w.name.trim().length >= 3);
+  const landWarn =
+    form.land_proof === "pernyataan" && filledWits.length < 2
+      ? "Pernyataan penguasaan fisik butuh 2 saksi."
+      : !form.land_proof
+        ? "Tanpa bukti penguasaan lahan, kebun belum bisa berstatus Siap EUDR. Paspor tetap dibuat."
+        : form.stdb_status === "belum"
+          ? "STDB belum diurus: kebun belum Siap EUDR sampai STDB diajukan."
+          : null;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft) return;
@@ -402,13 +683,24 @@ function NewPlotForm({
     setSaving(true);
     setErr(null);
     try {
+      const boundary_sides = Object.fromEntries(
+        SIDE_KEYS.filter((k) => sides[k].jenis).map((k) => [k, { jenis: sides[k].jenis, tetangga: sides[k].tetangga.trim() || null }]),
+      );
       const d = await api.createPlot({
         farmer_name: form.farmer_name.trim(),
         village: form.village.trim(),
         label: form.label.trim() || "Kebun",
         geometry: draft,
         planting_year_declared: form.planting_year_declared ? Number(form.planting_year_declared) : null,
-        witness: form.witness.trim() || null,
+        witnesses: filledWits.map((w) => ({ name: w.name.trim(), relation: w.relation })),
+        boundary_sides,
+        gps: fix && !fix.simulated ? { lat: fix.lat, lng: fix.lng, accuracy_m: fix.accuracy } : null,
+        land_proof: form.land_proof || null,
+        land_proof_ref: form.land_proof_ref.trim() || null,
+        stdb_status: form.stdb_status,
+        stdb_number: form.stdb_number.trim() || null,
+        dispute: form.dispute,
+        dispute_note: form.dispute ? form.dispute_note.trim() || null : null,
         consent: form.consent,
         delineation_method: ai?.polygon ? (ai.engine === "sam" ? "ai_sam" : "ai_watershed") : "manual",
         demo_scenario: form.demo_scenario || null,
@@ -421,15 +713,22 @@ function NewPlotForm({
     }
   };
 
+  const overlapsBig = (check?.overlaps ?? []).filter((o) => o.overlap_ha >= 0.01);
+
   return (
     <form onSubmit={submit} style={{ display: "grid" }}>
       <div style={{ padding: "20px 20px 14px", display: "grid", gap: 6 }}>
         <h2 style={{ fontSize: 20 }}>Daftarkan kebun</h2>
-        <p className="small muted">Tinjau garis batas di peta. Tarik titik sudut untuk memperbaiki.</p>
+        <p className="small muted">Tinjau garis batas di peta bersama petani dan saksi. Tarik titik sudut untuk memperbaiki.</p>
+        {fix && (
+          <p className="small" style={{ color: fix.simulated ? "var(--cek)" : "var(--aman)" }}>
+            {fix.simulated
+              ? "Posisi disimulasikan dari tengah peta (demo). Titik GPS tidak disimpan."
+              : `Titik GPS tersimpan (±${Math.round(fix.accuracy)} m). Untuk kebun di bawah 4 ha, titik ini sudah memenuhi syarat geolokasi EUDR.`}
+          </p>
+        )}
       </div>
-      {loading && (
-        <div className="section"><Spinner label="Menggambar batas…" /></div>
-      )}
+      {loading && <div className="section"><Spinner label="AI menggambar batas dari citra satelit…" /></div>}
       {ai?.polygon && (
         <div className="section" style={{ display: "grid", gap: 8 }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -444,27 +743,99 @@ function NewPlotForm({
           </dl>
           {ai.warnings.map((w) => <Notice key={w} kind="warn">{w}</Notice>)}
           <p className="small faint">{ai.note}</p>
-          <button type="button" className="btn btn-quiet" style={{ justifySelf: "start" }} onClick={onRedraw}>Klik ulang di kebun</button>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button type="button" className="btn btn-quiet" onClick={onRedraw}>Ulangi dari awal</button>
+            <button type="button" className="btn btn-quiet" onClick={corner} title="Berdiri di salah satu sudut kebun, lalu tekan">
+              <LocateFixed /> Sudut ini = posisi saya
+            </button>
+          </div>
+          {cornerMsg && <Notice kind={cornerMsg.kind}>{cornerMsg.text}</Notice>}
         </div>
       )}
       {aiErr && !ai?.polygon && draft && <div className="section"><Notice kind="warn">{aiErr}</Notice></div>}
       {draft && (checking || check) && (
         <div className="section" style={{ display: "grid", gap: 8 }}>
-          {check?.overlaps.map((o) => (
+          {overlapsBig.map((o) => (
             <Notice key={o.plot_id} kind="danger">
-              Bertumpuk {ha(o.overlap_ha)} dengan kebun {o.code} milik {o.farmer}. Sepakati batas dengan pemilik sebelah, lalu geser garisnya.
+              Bertumpuk {ha(o.overlap_ha)} dengan kebun {o.code} milik {o.farmer}.
             </Notice>
           ))}
+          {overlapsBig.length > 0 && (
+            <button type="button" className="btn" onClick={fit} disabled={fitting} style={{ justifySelf: "start" }}>
+              {fitting ? <Spinner /> : <Scissors />} Rapikan dengan kebun tetangga
+            </button>
+          )}
+          {fitMsg && <Notice kind="info">{fitMsg}</Notice>}
           {checking && !check ? <Spinner label="Mengecek status kawasan hutan di peta Kemenhut…" /> : check && <KawasanNotice k={check.protected} />}
         </div>
       )}
-      <div className="section" style={{ display: "grid", gap: 12 }}>
+
+      <div className="section form-grid">
+        <h4>Petani</h4>
         <label className="field"><span>Nama petani</span><input className="input" value={form.farmer_name} onChange={(e) => set("farmer_name", e.target.value)} autoComplete="off" required /></label>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div className="two">
           <label className="field"><span>Desa</span><input className="input" value={form.village} onChange={(e) => set("village", e.target.value)} required /></label>
           <label className="field"><span>Tahun tanam (menurut petani)</span><input className="input num" inputMode="numeric" placeholder="mis. 2010" value={form.planting_year_declared} onChange={(e) => set("planting_year_declared", e.target.value.replace(/\D/g, "").slice(0, 4))} /></label>
         </div>
-        <label className="field"><span>Saksi batas (ketua poktan / tetangga)</span><input className="input" value={form.witness} onChange={(e) => set("witness", e.target.value)} placeholder="Boleh diisi nanti" /></label>
+      </div>
+
+      <div className="section form-grid">
+        <h4>Batas di lapangan</h4>
+        <p className="small muted">Lebih mudah daripada membaca citra: sebutkan apa yang ada di tiap sisi kebun.</p>
+        {SIDE_KEYS.map((k) => (
+          <div className="side-row" key={k}>
+            <span className="side-k">{k[0].toUpperCase() + k.slice(1)}</span>
+            <select className="select" value={sides[k].jenis} aria-label={`Batas ${k}`} onChange={(e) => setSides({ ...sides, [k]: { ...sides[k], jenis: e.target.value as SideType } })}>
+              {SIDE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            {sides[k].jenis === "kebun" ? (
+              <input className="input" placeholder="Nama tetangga" value={sides[k].tetangga} onChange={(e) => setSides({ ...sides, [k]: { ...sides[k], tetangga: e.target.value } })} aria-label={`Nama tetangga ${k}`} />
+            ) : <span />}
+          </div>
+        ))}
+      </div>
+
+      <div className="section form-grid">
+        <h4>Saksi batas</h4>
+        {wits.map((w, i) => (
+          <div className="two" key={i}>
+            <input className="input" placeholder={`Nama saksi ${i + 1}`} value={w.name} onChange={(e) => setWits(wits.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} aria-label={`Nama saksi ${i + 1}`} />
+            <select className="select" value={w.relation} onChange={(e) => setWits(wits.map((x, j) => (j === i ? { ...x, relation: e.target.value } : x)))} aria-label={`Hubungan saksi ${i + 1}`}>
+              {RELATIONS.map((r) => <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>)}
+            </select>
+          </div>
+        ))}
+        <p className="small faint">Boleh diisi nanti dari paspor. Batas belum sah sebelum ada saksi.</p>
+      </div>
+
+      <div className="section form-grid">
+        <h4>Bukti lahan</h4>
+        <div className="two">
+          <label className="field"><span>Bukti penguasaan</span>
+            <select className="select" value={form.land_proof} onChange={(e) => set("land_proof", e.target.value as LandProof | "")}>
+              {LAND_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </label>
+          <label className="field"><span>Nomor dokumen (opsional)</span><input className="input" value={form.land_proof_ref} onChange={(e) => set("land_proof_ref", e.target.value)} disabled={!form.land_proof || form.land_proof === "pernyataan"} /></label>
+        </div>
+        <div className="two">
+          <label className="field"><span>STDB (Surat Tanda Daftar Budidaya)</span>
+            <select className="select" value={form.stdb_status} onChange={(e) => set("stdb_status", e.target.value as StdbStatus)}>
+              {STDB_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </label>
+          <label className="field"><span>Nomor STDB (opsional)</span><input className="input" value={form.stdb_number} onChange={(e) => set("stdb_number", e.target.value)} disabled={form.stdb_status === "belum"} /></label>
+        </div>
+        <label className="check">
+          <input type="checkbox" checked={form.dispute} onChange={(e) => set("dispute", e.target.checked)} />
+          <span>Ada sengketa atau klaim lain atas lahan ini</span>
+        </label>
+        {form.dispute && <input className="input" placeholder="Jelaskan singkat" value={form.dispute_note} onChange={(e) => set("dispute_note", e.target.value)} maxLength={240} aria-label="Keterangan sengketa" />}
+        {landWarn && <Notice kind="info">{landWarn}</Notice>}
+        <p className="small faint">Sertifikat tanah tidak wajib: ISPO menerima surat penguasaan fisik, dan EUDR hanya meminta dokumen yang diwajibkan hukum setempat.</p>
+      </div>
+
+      <div className="section form-grid">
         {demo && (
           <label className="field">
             <span>Skenario data satelit (mode demo)</span>
