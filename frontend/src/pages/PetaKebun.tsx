@@ -7,7 +7,7 @@ import { useSearchParams } from "react-router-dom";
 import { BadgeCheck, Crosshair, LocateFixed, MousePointerClick, PenLine, Plus, Scissors, Search, Sparkles } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { ha, KAWASAN_SOURCE_SHORT, kawasanText, RISK_COLOR, riskLabel } from "../lib/format";
+import { FUNGSI_COLOR, FUNGSI_LEGEND, ha, KAWASAN_SOURCE_SHORT, kawasanText, RISK_COLOR, riskLabel } from "../lib/format";
 import { averageFix, distanceM, getFix, type GpsFix, watchFix } from "../lib/gps";
 import type {
   DelineateResult,
@@ -26,10 +26,11 @@ import type {
 } from "../lib/types";
 import { BaseLayers } from "../components/MapBase";
 import { useKawasanLayerStatus } from "../components/KawasanLayer";
+import { useGfwStatus } from "../components/GfwKawasanLayer";
 import { PassportPanel } from "../components/PassportPanel";
 import { Notice, Spinner, StatusTag } from "../components/ui";
 
-const CENTER: [number, number] = [-0.172, 101.893];
+const CENTER: [number, number] = [-0.3626, 102.06]; // celah kosong di APL dekat kebun contoh, untuk demo daftar kebun
 const toLatLngs = (g: GeoPolygon) => g.coordinates[0].map(([lng, lat]) => [lat, lng] as [number, number]);
 const toGeo = (latlngs: L.LatLng[]): GeoPolygon => {
   const ring = latlngs.map((p) => [Number(p.lng.toFixed(7)), Number(p.lat.toFixed(7))]);
@@ -162,6 +163,7 @@ export default function PetaKebun() {
   const [filter, setFilter] = useState<Risk | "all" | "siap">("all");
   const [mode, setMode] = useState<Mode>("idle");
   const kawasanLayer = useKawasanLayerStatus();
+  const gfwStatus = useGfwStatus();
   const [draft, setDraft] = useState<GeoPolygon | null>(null);
   const [ai, setAi] = useState<DelineateResult | null>(null);
   const [aiErr, setAiErr] = useState<string | null>(null);
@@ -320,6 +322,13 @@ export default function PetaKebun() {
 
   const showDrawer = selected || draft || mode === "loading";
   // ?pusat=lat,lng,zoom untuk membagikan tampilan peta
+  const gfwOn = Boolean(meta?.kawasan?.gfw?.enabled && meta.kawasan.policy !== "lokal");
+  // selama lapisan otomatis menampilkan data, salinan lokal poligon yang sama tidak digambar dua kali
+  const gfwShowing = gfwStatus.state === "ok" || (gfwStatus.state === "loading" && !!gfwStatus.codes);
+  const kawasanCodes = useMemo(
+    () => new Set([...areas.filter((a) => !a.is_demo).map((a) => a.fungsi ?? "?"), ...(gfwStatus.codes ?? [])]),
+    [areas, gfwStatus],
+  );
   const initial = useMemo(() => {
     const v = params.get("pusat")?.split(",").map(Number);
     return v && v.length >= 2 && v.every(Number.isFinite) ? { c: [v[0], v[1]] as [number, number], z: v[2] || 16 } : { c: CENTER, z: 15 };
@@ -329,20 +338,24 @@ export default function PetaKebun() {
   return (
     <div className={`map-page ${showDrawer ? "has-drawer" : ""}`}>
       <MapContainer center={initial.c} zoom={initial.z} zoomControl={false} style={{ position: "absolute", inset: 0 }}>
-        <BaseLayers kawasan={meta?.kawasan && meta.kawasan.policy !== "lokal" ? meta.kawasan : null} />
+        <BaseLayers kawasan={meta?.kawasan && meta.kawasan.policy !== "lokal" ? meta.kawasan : null} gfw={gfwOn} />
         <FlyTo target={flyTarget} point={flyPoint} />
         <CenterReader onReady={useCallback((g: () => [number, number]) => { centerGetter.current = g; }, [])} />
         <BlueDot fix={mode !== "idle" ? fix : null} />
         <PickHandler active={mode === "pick"} onPick={onPick} />
         <DraftLayer draft={draft} mode={mode} onChange={(g) => { setDraft(g); if (mode === "draw") setMode("edit"); }} />
-        {areas.map((a) => (
-          <GeoJSON
-            key={a.name}
-            data={a.geometry as never}
-            style={{ color: "#ff6b5e", weight: 2, dashArray: "8 6", fillOpacity: 0.06 }}
-            interactive={false}
-          />
-        ))}
+        {areas.map((a, i) => {
+          if (gfwShowing && a.gfw_fid != null) return null;
+          const col = a.is_demo ? "#ff6b5e" : FUNGSI_COLOR[a.fungsi ?? "?"] ?? FUNGSI_COLOR["?"];
+          return (
+            <GeoJSON
+              key={`${a.gfw_fid ?? a.name}-${i}`}
+              data={a.geometry as never}
+              style={{ color: col, weight: 2, dashArray: "8 6", fillColor: col, fillOpacity: 0.1 }}
+              interactive={false}
+            />
+          );
+        })}
         {plots.map((p) => {
           const col = RISK_COLOR[p.risk_level ?? "none"];
           const sel = selected?.id === p.id;
@@ -470,11 +483,21 @@ export default function PetaKebun() {
         <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.rendah, background: "#1e7a4b44" }} /> {riskLabel("rendah")}</div>
         <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.perlu_cek, background: "#b7791f44" }} /> {riskLabel("perlu_cek")}</div>
         <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.tinggi, background: "#b3261e44" }} /> {riskLabel("tinggi")}</div>
-        {areas.length > 0 && (
+        {areas.some((a) => a.is_demo) && (
           <div className="legend-row">
-            <i className="swatch" style={{ borderColor: "#ff6b5e", borderStyle: "dashed" }} />{" "}
-            {areas.every((a) => a.is_demo) ? "Kawasan konservasi ilustrasi demo (bukan peta resmi)" : "Kawasan hutan (peta lokal)"}
+            <i className="swatch" style={{ borderColor: "#ff6b5e", borderStyle: "dashed" }} /> Batas ilustrasi (bukan peta resmi)
           </div>
+        )}
+        {FUNGSI_LEGEND.filter((l) => l.codes.some((c) => kawasanCodes.has(c))).map((l) => (
+          <div className="legend-row" key={l.label}>
+            <i className="swatch" style={{ borderColor: l.color, borderStyle: "dashed", background: `${l.color}33` }} /> {l.label}
+          </div>
+        ))}
+        {kawasanCodes.size > 0 && <div className="legend-row faint small">Batas kawasan: Peta Kawasan Hutan KLHK 2017 (GFW)</div>}
+        {gfwStatus.state === "loading" && <div className="legend-row faint">Mendeteksi kawasan hutan di area ini…</div>}
+        {gfwStatus.state === "zoom" && <div className="legend-row faint">Perbesar peta untuk melihat kawasan hutan.</div>}
+        {gfwStatus.state === "error" && (
+          <div className="legend-row legend-error" role="status">Peta kawasan KLHK 2017 (GFW) tidak bisa dimuat: {gfwStatus.message}</div>
         )}
         {kawasanLayer === "loading" && <div className="legend-row faint">Memuat peta kawasan Kemenhut…</div>}
         {kawasanLayer === "ok" && <div className="legend-row"><i className="swatch" style={{ borderColor: "#2f6f4f", background: "#7fbf7f88" }} /> Kawasan hutan (Kemenhut, 1:250.000)</div>}
@@ -872,7 +895,7 @@ function NewPlotForm({
   );
 }
 
-/** Status kawasan hutan saat kebun digambar: hasil cek otomatis ke peta Kemenhut. */
+/** Status kawasan hutan saat kebun digambar: cek otomatis ke peta Kemenhut, cadangan peta KLHK 2017 (GFW). */
 function KawasanNotice({ k }: { k: KawasanInfo }) {
   const src = KAWASAN_SOURCE_SHORT[k.source ?? "tidak_ada"] ?? "peta kawasan";
   const pct = Math.round(k.pct);
@@ -892,10 +915,17 @@ function KawasanNotice({ k }: { k: KawasanInfo }) {
     );
   if ((k.unknown_pct ?? 0) > 5)
     return <Notice kind="warn">Kebun berada di poligon {src} yang fungsinya belum terbaca. Status akan menjadi perlu cek.</Notice>;
-  if (k.source === "tidak_ada" || (k.warnings?.length && k.source !== "kemenhut"))
+  if (k.source === "klhk_gfw")
+    return (
+      <Notice kind="ok">
+        {kawasanText(k)} menurut peta Kawasan Hutan KLHK 2017 (Global Forest Watch). Peta Kemenhut terbaru sedang tidak
+        terjangkau, jadi status akan dicek ulang ke sana saat analisis berikutnya.
+      </Notice>
+    );
+  if (k.source === "tidak_ada" || (k.warnings?.length && k.source !== "kemenhut" && k.source !== "lokal"))
     return (
       <Notice kind="info">
-        Status kawasan hutan belum bisa dicek ke peta Kemenhut (layanan tidak terjangkau)
+        Status kawasan hutan belum bisa dicek ke peta Kemenhut maupun peta KLHK 2017 (layanan tidak terjangkau)
         {k.source === "ilustrasi" ? "; sementara memakai peta ilustrasi demo" : ""}. Akan dicek ulang saat analisis.
       </Notice>
     );

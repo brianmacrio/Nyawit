@@ -401,7 +401,7 @@ export interface KawasanInfo {
   label?: string | null;
   parts?: KawasanPart[];
   unknown_pct?: number;
-  source?: "kemenhut" | "lokal" | "ilustrasi" | "tidak_ada";
+  source?: "kemenhut" | "klhk_gfw" | "lokal" | "ilustrasi" | "tidak_ada";
   source_label?: string;
   checked?: boolean;
   policy?: string;
@@ -431,6 +431,7 @@ export interface Meta {
     last_error: string | null;
     cached_cells: number;
     source_label: string;
+    gfw?: { enabled: boolean; source_label: string; cached_tiles: number; online: boolean | null; last_error: string | null };
   };
 }
 
@@ -451,5 +452,15 @@ export interface ProtectedArea {
   fungsi?: string;
   fungsi_label?: string;
   is_demo: boolean;
+  source_label?: string | null;
+  gfw_fid?: number | null;
   geometry: GeoPolygon;
+}
+
+/** Poligon kawasan hutan untuk lapisan peta (Peta Kawasan Hutan KLHK 2017 lewat Global Forest Watch). */
+export interface KawasanMap {
+  features: { type: "Feature"; geometry: GeoPolygon; properties: { gfw_fid: number | null; fungsi: string; fungsi_label: string; name: string | null } }[];
+  source_label: string;
+  too_large?: boolean;
+  error?: string;
 }

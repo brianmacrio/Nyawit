@@ -9,6 +9,7 @@ import type {
   FitResult,
   GeoPolygon,
   Inspection,
+  KawasanMap,
   Meta,
   OverlapCheck,
   PassportLookup,
@@ -75,6 +76,8 @@ export const api = {
   plots: () => req<PlotSummary[]>("/api/plots"),
   plot: (id: number) => req<PlotDetail>(`/api/plots/${id}`),
   protectedAreas: () => req<ProtectedArea[]>("/api/plots/protected-areas"),
+  kawasanMap: (bbox: [number, number, number, number], signal?: AbortSignal) =>
+    req<KawasanMap>(`/api/kawasan/peta?bbox=${bbox.map((v) => v.toFixed(5)).join(",")}`, { signal }),
   analyze: (id: number) => post<PlotDetail>(`/api/plots/${id}/analyze`, {}),
   updatePlot: (id: number, data: Record<string, unknown>) =>
     req<PlotDetail>(`/api/plots/${id}`, { method: "PATCH", body: JSON.stringify(data) }),

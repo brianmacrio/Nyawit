@@ -38,6 +38,22 @@ export const RISK_COLOR: Record<Risk | "none", string> = {
 export const DECISION_LABEL = { diterima: "Diterima", catatan: "Diterima dengan catatan", ditahan: "Ditahan" } as const;
 
 /** Ringkasan status kawasan hutan untuk dibaca manusia, mis. "64% Hutan Lindung". */
+/** Warna poligon kawasan hutan di peta, per fungsi. */
+export const FUNGSI_COLOR: Record<string, string> = {
+  KSA_KPA: "#e5383b",
+  HL: "#f77f00",
+  HP: "#f4d35e",
+  HPT: "#f4d35e",
+  HPK: "#f4d35e",
+  "?": "#b5179e",
+};
+export const FUNGSI_LEGEND: { codes: string[]; label: string; color: string }[] = [
+  { codes: ["KSA_KPA"], label: "Kawasan konservasi (TN, CA, SM, ...)", color: FUNGSI_COLOR.KSA_KPA },
+  { codes: ["HL"], label: "Hutan lindung", color: FUNGSI_COLOR.HL },
+  { codes: ["HP", "HPT", "HPK"], label: "Hutan produksi (HP, HPT, HPK)", color: FUNGSI_COLOR.HP },
+  { codes: ["?"], label: "Kawasan, fungsi tidak terbaca", color: FUNGSI_COLOR["?"] },
+];
+
 export function kawasanText(k: KawasanInfo | undefined | null): string {
   if (!k) return "–";
   const parts = (k.parts ?? []).filter((p) => p.kawasan && p.pct >= 1);
@@ -50,7 +66,8 @@ export function kawasanText(k: KawasanInfo | undefined | null): string {
 
 export const KAWASAN_SOURCE_SHORT: Record<string, string> = {
   kemenhut: "peta Kemenhut",
-  lokal: "peta resmi lokal",
+  klhk_gfw: "peta kawasan KLHK 2017 (Global Forest Watch)",
+  lokal: "salinan lokal peta kawasan resmi",
   ilustrasi: "peta ilustrasi demo",
   tidak_ada: "peta tidak terjangkau",
 };

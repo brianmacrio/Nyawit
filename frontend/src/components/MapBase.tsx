@@ -1,12 +1,20 @@
 import { LayersControl, TileLayer } from "react-leaflet";
 import { KawasanLayer } from "./KawasanLayer";
+import { GfwKawasanOverlay } from "./GfwKawasanLayer";
 
 /**
  * Citra satelit asli (Esri World Imagery) + lapisan kehilangan tutupan pohon 2021-2024
- * dari Global Forest Watch (data Hansen/UMD asli) + peta Kawasan Hutan Kemenhut,
- * semuanya dimuat langsung oleh browser.
+ * dari Global Forest Watch (data Hansen/UMD asli) + peta Kawasan Hutan Kemenhut (dimuat browser)
+ * + Peta Kawasan Hutan KLHK 2017 yang diambil otomatis lewat backend dari Global Forest Watch.
  */
-export function BaseLayers({ kawasan }: { kawasan?: { service: string; layers: number[] | null } | null }) {
+export function BaseLayers({
+  kawasan,
+  gfw = false,
+}: {
+  kawasan?: { service: string; layers: number[] | null } | null;
+  /** tampilkan lapisan kawasan hutan otomatis (KLHK 2017 lewat GFW) */
+  gfw?: boolean;
+}) {
   return (
     <LayersControl position="topright">
       <LayersControl.BaseLayer checked name="Citra satelit">
@@ -29,6 +37,7 @@ export function BaseLayers({ kawasan }: { kawasan?: { service: string; layers: n
           maxZoom={20}
         />
       </LayersControl.Overlay>
+      {gfw && <GfwKawasanOverlay />}
       {kawasan && (
         <LayersControl.Overlay name="Kawasan hutan (peta Kemenhut)">
           <KawasanLayer url={kawasan.service} layers={kawasan.layers} />
