@@ -40,6 +40,7 @@ from shapely.ops import unary_union
 from shapely.validation import make_valid
 
 from ..config import DATA_DIR, KAWASAN_CACHE_DIR, KAWASAN_LAYERS, KAWASAN_SOURCE, KAWASAN_TIMEOUT, KAWASAN_URL
+from . import kawasan_gfw
 
 UA = "PasporKebun/1.0 (cek status kawasan hutan kebun petani; MVP hackathon)"
 CELL_DEG = 0.01
@@ -218,6 +219,7 @@ def _online_allowed() -> bool:
 def reset_breaker() -> None:
     with _state_lock:
         _state["offline_until"] = 0.0
+    kawasan_gfw.reset_breaker()
 
 
 # --------------------------------------------------------------------------------------
@@ -473,6 +475,8 @@ def local_areas() -> list[dict]:
                 "fungsi": fungsi,
                 "fungsi_label": FUNGSI[fungsi]["label"],
                 "is_demo": bool(props.get("is_demo", False)),
+                "source_label": props.get("source_label"),
+                "gfw_fid": props.get("gfw_fid"),
                 "file": p.name,
                 "geometry": g,
             })
@@ -497,6 +501,7 @@ def _contains_bounds(outer, inner) -> bool:
 
 
 def clear_caches() -> None:
+    kawasan_gfw.clear_caches()
     local_extents.cache_clear()
     local_areas.cache_clear()
     _code_map.cache_clear()
@@ -514,7 +519,7 @@ class KawasanResult:
     label: str | None
     parts: list[dict] = field(default_factory=list)  # [{fungsi, label, pct, name, source}]
     unknown_pct: float = 0.0
-    source: str = "tidak_ada"  # kemenhut | lokal | ilustrasi | tidak_ada
+    source: str = "tidak_ada"  # kemenhut | klhk_gfw | lokal | ilustrasi | tidak_ada
     source_label: str = ""
     checked: bool = False  # True bila peta resmi (online/cache/GeoJSON resmi) benar-benar diperiksa
     policy: str = "auto"
@@ -560,20 +565,44 @@ def lookup(geom: dict, policy: str | None = None) -> KawasanResult:
                 attrs = f.get("attrs") or {}
                 feats.append((classify(attrs), g, feature_name(attrs), "kemenhut"))
         kemenhut_ok = got == len(cells) and got > 0
-        if not kemenhut_ok:
-            err = _state.get("last_error") or "tidak terjangkau"
-            warnings.append(f"Peta kawasan Kemenhut belum bisa diakses ({err[:120]}). Analisis ulang saat internet tersedia.")
-        elif stale:
+        if kemenhut_ok and stale:
             warnings.append("Memakai salinan peta Kemenhut yang disimpan lebih dari 30 hari lalu; layanan sedang tidak terjangkau.")
 
+    # Cadangan otomatis: peta Kawasan Hutan KLHK 2017 dari Global Forest Watch
+    gfw_ok = False
+    gfw_when: str | None = None
+    if (policy == "gfw" or (policy in ("auto", "online") and not kemenhut_ok)) and kawasan_gfw.ENABLED:
+        try:
+            gfeats, gfw_when = kawasan_gfw.features_for(plot.bounds)
+            for gf in gfeats:
+                if gf["geom"].intersects(plot):
+                    feats.append((gf["fungsi"], gf["geom"], gf["name"], "klhk_gfw"))
+            gfw_ok = True
+        except kawasan_gfw.GfwError as e:
+            if policy == "gfw":
+                warnings.append(f"Peta kawasan KLHK 2017 (Global Forest Watch) belum bisa diakses ({str(e)[:120]}).")
+    if policy in ("auto", "online") and not kemenhut_ok:
+        err = (_state.get("last_error") or "tidak terjangkau")[:120]
+        if gfw_ok:
+            warnings.append(f"Peta Kemenhut terbaru sedang tidak terjangkau ({err}), jadi status dicek ke peta Kawasan Hutan "
+                            "KLHK 2017 (Global Forest Watch). Analisis ulang saat peta Kemenhut tersedia untuk menangkap "
+                            "perubahan SK sesudah 2017.")
+        else:
+            warnings.append(f"Peta kawasan Kemenhut belum bisa diakses ({err}). Analisis ulang saat internet tersedia.")
+
     local_used: set[str] = set()
+    local_labels: set[str] = set()
     local_covers = any(not a["is_demo"] and _contains_bounds(a["extent"], plot.bounds) for a in local_extents())
+    if local_covers:
+        local_labels |= {a["source_label"] for a in local_areas() if a.get("source_label") and not a["is_demo"]}
     for la in local_areas():
         g = _polygonal(shape(la["geometry"]))
         if g is None or not g.intersects(plot):
             continue
         src = "ilustrasi" if la["is_demo"] else "lokal"
         local_used.add(src)
+        if la.get("source_label"):
+            local_labels.add(la["source_label"])
         # batas ilustrasi demo tanpa kode fungsi dianggap kawasan konservasi (seperti di peta demo)
         code = "KSA_KPA" if la["is_demo"] and la["fungsi"] == "?" else la["fungsi"]
         feats.append((code, g, la["name"], src))
@@ -617,16 +646,20 @@ def lookup(geom: dict, policy: str | None = None) -> KawasanResult:
         source = "kemenhut"
         when = max(fetched) if fetched else None
         label = SOURCE_LABEL + (f", diambil {_fmt_date(when)}" if when else "")
+    elif gfw_ok:
+        source, when = "klhk_gfw", gfw_when
+        label = kawasan_gfw.SOURCE_LABEL + (f", diambil {_fmt_date(when)}" if when else "")
     elif "lokal" in local_used or local_covers:
-        source, label, when = "lokal", "Peta kawasan resmi (GeoJSON lokal)", None
+        source, when = "lokal", None
+        label = (next(iter(local_labels)) if len(local_labels) == 1 else "Peta kawasan resmi") + " (salinan lokal)"
     elif "ilustrasi" in local_used or (local_areas() and all(a["is_demo"] for a in local_areas())):
         source, label, when = "ilustrasi", "Peta ilustrasi demo (bukan batas resmi)", None
     else:
         source, label, when = "tidak_ada", "Belum ada peta kawasan yang bisa diperiksa", None
-    if kemenhut_ok and "ilustrasi" in local_used:
+    if (kemenhut_ok or gfw_ok) and "ilustrasi" in local_used:
         label += " + peta ilustrasi demo"
 
-    checked = kemenhut_ok or "lokal" in local_used or local_covers
+    checked = kemenhut_ok or gfw_ok or "lokal" in local_used or local_covers
     return KawasanResult(
         pct=pct,
         name=(dom["name"] or dom["label"]) if dom else None,
@@ -661,4 +694,5 @@ def status() -> dict:
         "last_error": _state["last_error"],
         "cached_cells": n,
         "source_label": SOURCE_LABEL,
+        "gfw": kawasan_gfw.status(),
     }

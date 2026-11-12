@@ -1,4 +1,4 @@
-"""Uji koneksi ke peta Kawasan Hutan Kemenhut dari laptop sendiri.
+"""Uji koneksi ke peta Kawasan Hutan Kemenhut dan cadangannya (KLHK 2017 lewat GFW) dari laptop sendiri.
 
     cd backend
     .venv\\Scripts\\python -m app.scripts.check_kawasan               (titik contoh di Riau)
@@ -15,9 +15,34 @@ import sys
 import time
 
 from ..config import KAWASAN_URL
-from ..services import kawasan
+from ..services import kawasan, kawasan_gfw
 
-SAMPLES = [(-0.172, 101.893, "lokasi desa demo, Ukui, Pelalawan"), (-0.20, 101.75, "sekitar TN Tesso Nilo")]
+SAMPLES = [
+    (-0.3645, 102.0625, "desa demo, harus APL"),
+    (-0.3676, 102.0544, "kebun demo Rina Wati, harus Hutan Produksi"),
+    (-0.20, 101.80, "di dalam TN Tesso Nilo"),
+]
+
+
+def check_gfw(pts) -> int:
+    print(f"\nCadangan: {kawasan_gfw.SOURCE_LABEL}")
+    print(f"Tile    : {kawasan_gfw.URL}")
+    ok = 0
+    for lat, lng, label in pts:
+        d = 0.0005
+        t0 = time.perf_counter()
+        try:
+            feats, _ = kawasan_gfw.features_for((lng - d, lat - d, lng + d, lat + d))
+        except kawasan_gfw.GfwError as e:
+            print(f"  {label}: GAGAL ({e})\n  Saran: {_hint(str(e))}")
+            continue
+        from shapely.geometry import Point
+
+        hit = [f for f in feats if f["geom"].contains(Point(lng, lat))]
+        what = ", ".join(f"{kawasan.FUNGSI[f['fungsi']]['label']} ({f['name']})" for f in hit) or "tidak ada poligon"
+        print(f"  {label}: {what}  [{time.perf_counter() - t0:.1f} s]")
+        ok += 1
+    return ok
 
 
 def _hint(err: str) -> str:
@@ -42,8 +67,11 @@ def main() -> int:
     try:
         info = kawasan.service_info(refresh=True)
     except Exception as e:  # noqa: BLE001
-        print(f"GAGAL terhubung ({time.perf_counter() - t0:.1f} s): {e}")
+        print(f"GAGAL terhubung ke Kemenhut ({time.perf_counter() - t0:.1f} s): {e}")
         print("Saran   :", _hint(str(e)))
+        if check_gfw(pts):
+            print("\nAplikasi memakai cadangan KLHK 2017 (GFW) di atas sampai peta Kemenhut kembali aktif.")
+            return 0
         print("Aplikasi tetap jalan memakai cache dan peta lokal; status kawasan ditandai 'belum dicek'.")
         return 1
     print(f"Terhubung dalam {time.perf_counter() - t0:.1f} s. {len(info['layers'])} layer:")
@@ -84,6 +112,7 @@ def main() -> int:
         sample = {v: "HL" for v in list(unknown_vals[fld])[:3]}
         print(json.dumps({fld: sample}, ensure_ascii=False, indent=2))
         print("Kode yang boleh dipakai: " + ", ".join(k for k in kawasan.FUNGSI if k != "?"))
+    check_gfw(pts)
     print("\nSelesai. Hasil disimpan di backend/data/kawasan_cache agar demo tetap jalan saat offline.")
     return 0
 

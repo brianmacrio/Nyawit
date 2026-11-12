@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from ..config import APP_VERSION, EUDR_APPLICATION, EUDR_CUTOFF, SATELLITE_MODE, TILE_URL
 from ..db import get_db
 from ..models import User
 from ..security import rate_limit, require
-from ..services import delineation, kawasan
+from ..services import delineation, kawasan, kawasan_gfw
 from ..services.satellite import live
 
 router = APIRouter(prefix="/api", tags=["Meta"])
@@ -45,6 +45,24 @@ def kawasan_status(probe: bool = False, _: User = Depends(require())):
         except Exception as e:  # noqa: BLE001
             kawasan._mark_offline(e)
     return kawasan.status()
+
+
+@router.get("/kawasan/peta", dependencies=[Depends(rate_limit("kawasan_peta", 120, 60))])
+def kawasan_peta(bbox: str = Query(..., description="minLng,minLat,maxLng,maxLat"), _: User = Depends(require())):
+    """Poligon kawasan hutan (KLHK 2017, Global Forest Watch) di tampilan peta, untuk lapisan peta."""
+    try:
+        minx, miny, maxx, maxy = (float(v) for v in bbox.split(","))
+    except ValueError as e:
+        raise HTTPException(422, "bbox harus berupa empat angka: minLng,minLat,maxLng,maxLat") from e
+    if not (-180 <= minx < maxx <= 180 and -90 <= miny < maxy <= 90):
+        raise HTTPException(422, "bbox tidak valid")
+    if maxx - minx > 0.4 or maxy - miny > 0.4:
+        return {"features": [], "too_large": True, "source_label": kawasan_gfw.SOURCE_LABEL}
+    try:
+        feats = kawasan_gfw.map_features((minx, miny, maxx, maxy), tolerance=(maxx - minx) / 1500)
+    except kawasan_gfw.GfwError as e:
+        return {"features": [], "error": str(e)[:200], "source_label": kawasan_gfw.SOURCE_LABEL}
+    return {"type": "FeatureCollection", "features": feats, "source_label": kawasan_gfw.SOURCE_LABEL}
 
 
 @router.post("/demo/reset", dependencies=[Depends(rate_limit("reset", 3, 600))])

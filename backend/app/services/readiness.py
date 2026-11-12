@@ -101,7 +101,8 @@ def evaluate(p: Plot, pending_inspection: bool = False, now: datetime | None = N
     elif not (p.kawasan_checked or demo_ok):
         add("kawasan", "Di luar kawasan hutan", False, "Peta kawasan Kemenhut belum terjangkau saat dicek.")
     else:
-        src = {"kemenhut": "peta Kemenhut", "lokal": "peta resmi lokal", "ilustrasi": "peta ilustrasi demo"}.get(
+        src = {"kemenhut": "peta Kemenhut", "klhk_gfw": "peta Kawasan Hutan KLHK 2017 (Global Forest Watch)",
+               "lokal": "salinan lokal peta kawasan resmi", "ilustrasi": "peta ilustrasi demo"}.get(
             p.kawasan_source or "", "peta kawasan")
         add("kawasan", "Di luar kawasan hutan", True, f"Di luar kawasan hutan menurut {src}.")
 

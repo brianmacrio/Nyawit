@@ -66,6 +66,13 @@ KAWASAN_URL = _env(
 KAWASAN_LAYERS = [int(x) for x in _env("PK_KAWASAN_LAYERS", "").split(",") if x.strip().isdigit()]
 KAWASAN_TIMEOUT = float(_env("PK_KAWASAN_TIMEOUT", "10"))
 KAWASAN_CACHE_DIR = DATA_DIR / "kawasan_cache"
+# Cadangan otomatis bila peta Kemenhut tidak terjangkau: Peta Kawasan Hutan KLHK 2017 yang
+# disediakan Global Forest Watch sebagai tile vektor publik (tanpa kunci API).
+KAWASAN_GFW = _env("PK_KAWASAN_GFW", "1") not in ("0", "false", "no")
+KAWASAN_GFW_URL = _env(
+    "PK_KAWASAN_GFW_URL",
+    "https://tiles.globalforestwatch.org/idn_forest_area/v201709/dynamic/{z}/{x}/{y}.pbf",
+)
 
 CORS_ORIGINS = [o.strip() for o in _env("PK_CORS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]
 
