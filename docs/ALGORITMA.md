@@ -80,6 +80,22 @@ tidak tahu status hukum ini, jadi kami membaca peta resmi:
    bisa berasal dari ketelitian peta.
 5. Kejujuran data: bila peta tidak terjangkau atau fungsi tidak terbaca, paspor menulisnya terang-terangan; di mode live
    status kebun menjadi Perlu cek, bukan Aman.
+6. Cadangan otomatis (ditambahkan 12 Nov 2026, saat server peta Kemenhut mati): **Peta Kawasan Hutan Indonesia KLHK 2017**
+   yang disediakan Global Forest Watch sebagai tile vektor publik (`idn_forest_area` v201709, tanpa kunci API).
+   - Tile zoom 12 (~9,8 km) yang menutupi kebun diunduh sekali, dibaca dengan pembaca Mapbox Vector Tile buatan sendiri
+     (`services/mvt.py`, tanpa dependensi; diuji terhadap tile asli GFW: 476 titik, 82.022 ha untuk TN Tesso Nilo), lalu
+     disimpan di cache disk selama setahun.
+   - Tile "dynamic" GFW berisi poligon utuh, jadi fitur yang sama di beberapa tile digabung per `gfw_fid`.
+   - Fungsi dibaca dari teks `desc_in` ("Taman Nasional", "Hutan Produksi Terbatas", ...), kode `fungsikawa` sebagai cadangan.
+   - Tile yang gagal diunduh (termasuk HTTP 404) membuat status "belum dicek", tidak pernah "di luar kawasan".
+   - Paspor menyebut sumbernya ("Peta Kawasan Hutan KLHK 2017 (dataset Global Forest Watch)") dan memberi catatan bahwa data
+     2017 bisa tertinggal dari SK sesudahnya; analisis ulang memakai peta Kemenhut begitu tersedia.
+   - Peta aplikasi menampilkan lapisan "Kawasan hutan KLHK 2017 (otomatis, GFW)" untuk area yang sedang dilihat (zoom 12+),
+     sehingga batas kawasan di mana pun di Indonesia muncul tanpa digambar.
+7. Data demo: kebun contoh ditempatkan di Areal Penggunaan Lain menurut peta yang sama (area "Kebun Swadaya" di sisi tenggara
+   TN Tesso Nilo, Riau). Lokasi demo lama ternyata berada di dalam TN Tesso Nilo menurut peta resmi, jadi seluruh kebun contoh
+   dipindahkan. Potongan peta di sekitar lokasi demo disimpan di `app/seed_data/` agar demo tetap jalan tanpa internet;
+   satu kebun (Rina Wati) sengaja diletakkan di Hutan Produksi.
 
 Batasan: peta kawasan berskala kecil dan bisa tertinggal dari SK pelepasan terbaru. Karena itu hasil "masuk kawasan" adalah
 sinyal untuk diverifikasi (sertifikat, SK pelepasan, cek lapangan), bukan vonis.
@@ -125,6 +141,9 @@ volume, bukti bebas deforestasi dan legalitas. Hanya kebun Siap EUDR yang masuk;
 - Koltiva × REA Kaltim: https://www.agtechnavigator.com/Article/2025/08/11/tackling-barriers-to-eudr-compliance-for-indonesian-smallholders
 - Layanan peta Kawasan Hutan Kemenhut (dipakai Peta Interaktif SIGAP, skala 1:250.000): https://geoportal.planologi.kehutanan.go.id/server/rest/services/Peta_Interaktif_2026/KWSHUTAN_AR_250K/MapServer
   (alamat lama geoportal.menlhk.go.id sudah tidak aktif sejak KLHK dipecah)
+- Peta Kawasan Hutan Indonesia KLHK 2017 di Global Forest Watch: https://data-api.globalforestwatch.org/dataset/idn_forest_area
+  (tile: https://tiles.globalforestwatch.org/idn_forest_area/v201709/dynamic/{z}/{x}/{y}.pbf, lisensi CC BY 4.0)
+- Spesifikasi Mapbox Vector Tile 2.1: https://github.com/mapbox/vector-tile-spec
 - RSPO Independent Smallholder Standard 2024: https://rspo.org/wp-content/uploads/Consolidated-ISH-2024_Adopted_13112024.pdf
 - Permentan No. 33 Tahun 2025 (ISPO): https://peraturan.go.id/files/permentan-no-33-tahun-2025.pdf
 - Pedoman EUDR C/2026/3896: https://eur-lex.europa.eu/eli/C/2026/3896/oj/eng

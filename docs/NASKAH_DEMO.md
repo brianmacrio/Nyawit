@@ -32,8 +32,13 @@ perbesar kursor, jeda 1-2 detik setelah setiap hasil muncul.
 | 4:30–4:50 | **Cara kerja AI**: akurasi, batasan, keamanan | "Akurasi dan batasan AI dibuka; semua berjalan di CPU." |
 | 4:50–5:00 | **Cek paspor publik** /cek/PK-00001-F | "Siapa pun bisa mengecek paspor. Nama petani disamarkan." |
 
-(Opsional) Daftarkan kebun di lokasi nyata yang masuk kawasan hutan dan nyalakan lapisan "Kawasan hutan (peta Kemenhut)".
-Uji lokasinya sehari sebelumnya agar tersimpan di cache.
+Batas kawasan hutan di peta (garis putus-putus kuning = hutan produksi, merah = taman nasional) adalah data resmi, bukan
+gambar: salinan Peta Kawasan Hutan KLHK 2017 untuk area demo, ditambah lapisan "Kawasan hutan KLHK 2017 (otomatis, GFW)"
+yang muncul sendiri di mana pun peta digeser (zoom 12+). Momen yang bagus untuk kamera: kebun **Rina Wati (PK-00005-Z)**
+berada di Hutan Produksi, tepat di seberang garis kuning dari kebun tetangganya.
+
+(Opsional) Geser peta ke barat laut sampai TN Tesso Nilo, daftarkan kebun di dalamnya: paspor langsung menulis "masuk
+Kawasan konservasi" dan menyebut sumber petanya. Uji sehari sebelumnya agar tile peta tersimpan di cache.
 
 # Babak final (15 menit per tim)
 
@@ -64,5 +69,8 @@ Rincian slot: 1 menit persiapan laptop dan verifikasi localhost, **7 menit prese
   dasbor dan menaikkan skor anomali pengepul itu. Paket ekspor juga memisahkan TBS yang tidak tertelusur.
 - *Akurasinya diuji dengan data nyata?* Validasi saat ini pada data simulasi berlabel; algoritma mengikuti metode yang sudah
   divalidasi di literatur. Pilot akan memakai titik referensi lapangan dari inspeksi verifikator.
+- *Batas kawasan hutan itu digambar sendiri?* Tidak. Sumber utama peta Kawasan Hutan Kemenhut; bila servernya mati (seperti
+  12 Nov 2026), aplikasi otomatis memakai Peta Kawasan Hutan KLHK 2017 dari Global Forest Watch, dan paspor menyebut sumbernya.
+  Satelit tidak bisa melihat status hukum lahan; yang dilihat satelit adalah tutupan pohon dan riwayatnya.
 - *Status hutan lindung dari mana?* Peta Kawasan Hutan resmi Kemenhut (SIGAP), dicek otomatis saat kebun digambar. Peta resmi
   bisa tertinggal dari SK pelepasan terbaru, jadi petani bisa mengajukan keberatan dengan bukti.

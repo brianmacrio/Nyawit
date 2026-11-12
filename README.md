@@ -49,7 +49,8 @@ Paspor adalah bukti uji tuntas yang membuat sertifikasi kelompok dan pelaporan E
    gambar manual, "Rapikan dengan kebun tetangga" (potong tumpang tindih), "Sudut ini = posisi saya" (GPS di sudut kebun).
 3. **Data lapangan**: ciri batas tiap sisi (parit, jalan, kebun tetangga, ...), saksi batas, bukti lahan bertingkat
    (sertifikat / surat desa / pernyataan + 2 saksi), STDB, pernyataan sengketa, persetujuan petani.
-4. **Cek otomatis**: tumpang tindih antarkebun, status kawasan hutan dari peta resmi Kemenhut, riwayat satelit 2018-kini
+4. **Cek otomatis**: tumpang tindih antarkebun, status kawasan hutan dari peta resmi Kemenhut (cadangan otomatis: Peta Kawasan
+   Hutan KLHK 2017 lewat Global Forest Watch), riwayat satelit 2018-kini
    (COLD-lite), keputusan multi-bukti, pembeda peremajaan sawit vs deforestasi.
 5. **Paspor**: status **Siap EUDR** (5 syarat, berlaku 12 bulan), tingkat ketelitian lokasi, bukti satelit + grafik NDVI,
    QR, kartu cetak untuk petani, GeoJSON, tampilan publik dengan nama disamarkan, riwayat perubahan.
@@ -87,7 +88,7 @@ flowchart LR
   end
   DB[(SQLite)]
   X1[Esri World Imagery]
-  X2[Peta Kawasan Hutan<br/>Kemenhut SIGAP]
+  X2[Peta Kawasan Hutan<br/>Kemenhut SIGAP<br/>cadangan: KLHK 2017 via GFW]
   X3[Sentinel-2 + Hansen GFC<br/>mode live]
   K & P & V & F & U --> UI --> SEC --> R
   R --> D & T & E & G & RD & S
@@ -127,13 +128,13 @@ Struktur folder:
 backend/app/
   main.py, config.py, db.py (migrasi aditif), models.py, schemas.py, security.py, seed.py
   routers/   auth, plots, ai, supply, verification, shipments, dashboard, meta
-  services/  delineation, tiles, timeseries (COLD-lite), evidence, kawasan, satellite/{demo,live},
+  services/  delineation, tiles, timeseries (COLD-lite), evidence, kawasan, kawasan_gfw + mvt, satellite/{demo,live},
              yield_model, supply_guard, readiness (Siap EUDR), verification, shipment, audit, geo
   scripts/   validate, check_live, check_kawasan
-backend/tests/   43 tes pytest
+backend/tests/   53 tes pytest
 frontend/src/
   pages/     Beranda, Masuk, PetaKebun, Pengepul, Pabrik, Verifikasi, Transparansi, CekPaspor, KartuPaspor
-  components/ PassportPanel, NdviChart, MapBase, KawasanLayer, QrScanner, RoleGate, ui
+  components/ PassportPanel, NdviChart, MapBase, KawasanLayer, GfwKawasanLayer, QrScanner, RoleGate, ui
   lib/       api, auth, gps, format, types
 ```
 
@@ -145,8 +146,8 @@ frontend/src/
 | Backend | Python 3.10+, FastAPI, Uvicorn, SQLAlchemy 2, Pydantic 2, python-dotenv |
 | Database | SQLite (WAL), migrasi aditif otomatis |
 | AI & geospasial | NumPy, OpenCV (headless), scikit-learn (Isolation Forest), Shapely, Pillow; opsional Segment Anything (PyTorch) |
-| API / layanan pihak ketiga | Esri World Imagery (citra), Global Forest Watch tiles (kehilangan tutupan pohon), Geoportal Kemenhut SIGAP (Kawasan Hutan, ArcGIS REST), Microsoft Planetary Computer (Sentinel-2, mode live), Google Cloud Storage (Hansen GFC, mode live) |
-| Pengujian & mutu | pytest (43 tes, termasuk server peta tiruan), Playwright (uji alur di browser saat pengembangan) |
+| API / layanan pihak ketiga | Esri World Imagery (citra), Global Forest Watch tiles (kehilangan tutupan pohon; Peta Kawasan Hutan KLHK 2017 sebagai tile vektor), Geoportal Kemenhut (Kawasan Hutan, ArcGIS REST), Microsoft Planetary Computer (Sentinel-2, mode live), Google Cloud Storage (Hansen GFC, mode live) |
+| Pengujian & mutu | pytest (53 tes, termasuk server peta tiruan), Playwright (uji alur di browser saat pengembangan) |
 | Deploy | Docker (multi-stage), Render Blueprint (`render.yaml`) |
 
 Tidak ada layanan AI pihak ketiga (API LLM dll.) yang dipanggil aplikasi; semua model berjalan di CPU server sendiri.
@@ -174,6 +175,7 @@ sebagai admin lalu `POST /api/demo/reset`. Dokumentasi API interaktif: http://lo
 | `PK_SATELLITE_MODE` | `demo` (simulasi berlabel) atau `live` (Sentinel-2 + Hansen) | `demo` |
 | `PK_KAWASAN_SOURCE` | `auto` / `online` / `lokal` untuk cek kawasan hutan | `auto` |
 | `PK_KAWASAN_URL`, `PK_KAWASAN_LAYERS`, `PK_KAWASAN_TIMEOUT` | Layanan peta kawasan, layer, batas waktu | Geoportal Kemenhut, otomatis, 10 s |
+| `PK_KAWASAN_GFW`, `PK_KAWASAN_GFW_URL` | Cadangan otomatis Peta Kawasan Hutan KLHK 2017 (Global Forest Watch) | aktif, tile `idn_forest_area` v201709 |
 | `PK_DATA_DIR`, `PK_DB_URL` | Lokasi data dan database | `backend/data` |
 | `PK_TILE_URL`, `PK_TILE_ZOOM` | Sumber citra untuk AI batas kebun | Esri World Imagery, 18 |
 | `PK_CORS` | Asal yang boleh memanggil API (mode pengembangan) | `http://localhost:5173` |
@@ -181,7 +183,8 @@ sebagai admin lalu `POST /api/demo/reset`. Dokumentasi API interaktif: http://lo
 **Fitur tambahan (opsional)**
 - **Satelit live:** `pip install -r backend/requirements-live.txt`, uji dengan `python -m app.scripts.check_live`, lalu
   `PK_SATELLITE_MODE=live`. Belum bisa kami uji dari lingkungan pengembangan (server satelit terblokir di sana).
-- **Cek kawasan hutan Kemenhut:** uji koneksi dengan `python -m app.scripts.check_kawasan`. Bila ada fungsi yang terbaca "?",
+- **Cek kawasan hutan Kemenhut:** uji koneksi dengan `python -m app.scripts.check_kawasan` (sekaligus menguji cadangan
+  KLHK 2017 dari Global Forest Watch). Bila ada fungsi yang terbaca "?",
   buat `backend/data/kawasan/kode_fungsi.json` sesuai contoh yang dicetak skrip. Peta resmi lain (GeoJSON) cukup ditaruh di
   `backend/data/kawasan/`.
 - **Segment Anything:** `pip install -r backend/requirements-sam.txt`, unduh `sam_vit_b_01ec64.pth` ke `backend/models/`.
@@ -236,10 +239,11 @@ kode, tes, serta dokumentasi (diperbolehkan guidebook). Seluruh kode ditinjau, d
 | Bagian | Status |
 |---|---|
 | Citra satelit di peta dan untuk AI batas kebun | **Nyata** (Esri World Imagery) |
-| Lapisan kehilangan tutupan pohon dan peta Kawasan Hutan | **Nyata** (Global Forest Watch; Kemenhut SIGAP) |
+| Lapisan kehilangan tutupan pohon dan peta Kawasan Hutan | **Nyata** (Global Forest Watch; Kemenhut; Peta Kawasan Hutan KLHK 2017 via GFW) |
 | Time series NDVI & lapisan bukti per kebun | **Simulasi berlabel** di mode demo (ditulis jelas di paspor); **nyata** di mode live |
 | Nama petani, desa, transaksi, pengepul, pabrik | **Fiktif** |
-| Batas kawasan pada kebun contoh | **Ilustrasi**; kebun baru dicek ke peta Kemenhut |
+| Batas kawasan di sekitar kebun contoh | **Nyata**: salinan lokal Peta Kawasan Hutan KLHK 2017 (GFW) agar demo jalan tanpa internet; kebun baru dicek ke peta Kemenhut, cadangan KLHK 2017 |
+| Lokasi kebun contoh | Poligon fiktif yang ditempatkan di Areal Penggunaan Lain (area "Kebun Swadaya") di sisi tenggara TN Tesso Nilo; satu kebun sengaja di Hutan Produksi |
 
 ## Keamanan dan privasi
 
@@ -259,7 +263,7 @@ kode, tes, serta dokumentasi (diperbolehkan guidebook). Seluruh kode ditinjau, d
 |---|---|
 | Kesesuaian Masalah & Solusi (25%) | Empat peran nyata; syarat Siap EUDR mengikuti EUDR, ISPO (Permentan 33/2025), dan RSPO; sertifikat tanah tidak diwajibkan; pembeda peremajaan agar petani PSR tidak dirugikan; keberatan petani |
 | Inovasi & Implementasi Teknologi (25%) | 4 komponen AI yang masing-masing mengubah keputusan; riwayat satelit 5+ tahun; cek kawasan hutan otomatis; penjaga pengepul (celah yang belum ditutup solusi lain); sampel verifikasi berbasis risiko |
-| Rekayasa Perangkat Lunak (25%) | Arsitektur berlapis, tipe ketat (Pydantic + TypeScript strict), 43 tes otomatis, migrasi aditif, Docker + Render, dokumentasi API otomatis, setup satu perintah |
+| Rekayasa Perangkat Lunak (25%) | Arsitektur berlapis, tipe ketat (Pydantic + TypeScript strict), 53 tes otomatis, migrasi aditif, Docker + Render, dokumentasi API otomatis, setup satu perintah |
 | Desain & Pengalaman Pengguna (15%) | GPS "saya di kebun" alih-alih membaca citra; pertanyaan per sisi batas; satu alur per peran; checklist Siap EUDR yang menyebut apa yang kurang; kartu QR cetak untuk petani tanpa ponsel |
 | Etika & Keamanan Digital (10%) | Lihat bagian Keamanan dan privasi; transparansi AI di halaman Cara kerja AI; atribusi lengkap di bawah |
 
@@ -267,7 +271,7 @@ kode, tes, serta dokumentasi (diperbolehkan guidebook). Seluruh kode ditinjau, d
 
 ```bat
 cd backend
-.venv\Scripts\python -m pytest -q              :: 43 tes
+.venv\Scripts\python -m pytest -q              :: 53 tes
 .venv\Scripts\python -m app.scripts.validate   :: menulis docs/VALIDASI.md
 ```
 
@@ -275,7 +279,8 @@ cd backend
 
 **Data & layanan:** citra Esri World Imagery (Esri, Maxar, Earthstar Geographics); peta OpenStreetMap (© kontributor
 OpenStreetMap, ODbL); kehilangan tutupan pohon Hansen/UMD/Google/USGS/NASA via Global Forest Watch (CC BY 4.0); Peta
-Kawasan Hutan Kementerian Kehutanan (Direktorat Pengukuhan dan Penatagunaan Kawasan Hutan, layanan SIGAP); Sentinel-2
+Kawasan Hutan Kementerian Kehutanan (Direktorat Pengukuhan dan Penatagunaan Kawasan Hutan, layanan SIGAP); Peta Kawasan Hutan
+Indonesia KLHK 2017 lewat Global Forest Watch (dataset `idn_forest_area`, CC BY 4.0); Sentinel-2
 (Copernicus/ESA) via Microsoft Planetary Computer; Hansen Global Forest Change v1.12 (Google Cloud Storage).
 
 **Metode:** logika keputusan diadaptasi dari Whisp (FAO / Forest Data Partnership, MIT); COLD/CCDC (Zhu dkk.); tahun tanam
