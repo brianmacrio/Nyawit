@@ -1,9 +1,10 @@
 """Membuat data demo yang realistis (nama, desa, dan transaksi FIKTIF).
 
-Lokasi demo di sekitar Kec. Ukui, Pelalawan, Riau (dekat Taman Nasional Tesso Nilo),
-wilayah dengan kasus TBS ilegal yang terdokumentasi. Batas "kawasan hutan" di sini
-adalah ILUSTRASI untuk demo, bukan batas resmi. Untuk produksi, taruh GeoJSON resmi
-(KLHK / WDPA) di backend/data/kawasan/.
+Lokasi demo: area "Kebun Swadaya" di sisi tenggara Taman Nasional Tesso Nilo, Riau, wilayah
+dengan kasus TBS ilegal yang terdokumentasi. Kebun contoh ditempatkan di Areal Penggunaan Lain
+menurut Peta Kawasan Hutan KLHK 2017 (Global Forest Watch); satu kebun (Rina Wati) sengaja
+berada di Hutan Produksi. Batas kawasan di demo adalah data resmi itu (salinan lokal di
+app/seed_data/), bukan gambar tangan. Nama petani, desa, dan poligon kebun tetap fiktif.
 
 Jalankan ulang:  python -m app.seed
 """
@@ -12,6 +13,7 @@ from __future__ import annotations
 import json
 import math
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import numpy as np
 from sqlalchemy import select
@@ -26,21 +28,12 @@ from .services import plots as plot_svc
 from .services import supply as supply_svc
 from .services.yield_model import SEASONAL, TYPICAL_SMALLHOLDER_FACTOR, potential_t_per_ha_year
 
-CENTER = (-0.1720, 101.8930)  # (lat, lng)
+CENTER = (-0.3645, 102.0625)  # (lat, lng), di dalam APL "Kebun Swadaya" menurut data GFW
 M_PER_DEG = 111_320.0
-
-KAWASAN = {
-    "type": "FeatureCollection",
-    "features": [{
-        "type": "Feature",
-        "properties": {"name": "Kawasan konservasi (ILUSTRASI demo)", "status": "Taman Nasional - batas ilustratif",
-                       "fungsi": "KSA_KPA", "is_demo": True},
-        "geometry": {"type": "Polygon", "coordinates": [[
-            [101.9046, -0.1580], [101.9330, -0.1545], [101.9420, -0.1820], [101.9280, -0.2030],
-            [101.9046, -0.1990], [101.9046, -0.1580],
-        ]]},
-    }],
-}
+# Tata letak dicerminkan (timur-barat dan utara-selatan) agar seluruh kebun contoh muat di APL
+# dan kelompok kebun utama menghadap batas Hutan Produksi di barat.
+FLIP_X, FLIP_Y = -1, -1
+KAWASAN_FILE = Path(__file__).parent / "seed_data" / "kawasan_klhk2017_sekitar_demo.geojson"
 
 FIRST = ["Budi", "Siti", "Sutrisno", "Joko", "Rina", "Darmawan", "Wahyuni", "Agus", "Sri", "Hasan", "Rahmat", "Yanti",
          "Bambang", "Ernawati", "Slamet", "Fitri", "Taufik", "Murni", "Iwan", "Rohani", "Syahrul", "Desi", "Mulyadi",
@@ -83,7 +76,7 @@ HERO = [
     ("Siti Aminah", "Sungai Harapan", (-235, 165), (120, 132), "dibuka_2019", 2019, "Ketua Poktan Sri Rejeki"),
     ("Sutrisno Wibowo", "Sungai Harapan", (-60, 150), (190, 168), "peremajaan_2023", 2023, "Ketua Poktan Sri Rejeki"),
     ("Joko Susilo", "Sungai Harapan", (205, 40), (175, 138), "hutan_dibuka_2022", 2015, None),
-    ("Rina Wati", "Sungai Harapan", (1340, 40), (150, 126), "kawasan_hutan", 2014, "Kepala Dusun"),
+    ("Rina Wati", "Sungai Harapan", (830, 406), (150, 126), "kawasan_hutan", 2014, "Kepala Dusun"),  # di Hutan Produksi
     ("Darmawan Lubis", "Sungai Harapan", (-420, -40), (190, 148), "data_kurang", 2012, "Ketua Poktan Sri Rejeki"),
     ("Wahyuni Harahap", "Sungai Harapan", (-240, -40), (118, 120), "sawit_tua_stabil", 2010, "Ketua Poktan Sri Rejeki"),
     ("Agus Pratama", "Sungai Harapan", (-90, -45), (160, 138), "sawit_tua_stabil", 2006, "Ketua Poktan Sri Rejeki"),
@@ -110,7 +103,7 @@ COLLECTORS = [
 
 
 def _offset(lat0: float, lng0: float, dx: float, dy: float) -> tuple[float, float]:
-    return lat0 + dy / M_PER_DEG, lng0 + dx / (M_PER_DEG * math.cos(math.radians(lat0)))
+    return lat0 + FLIP_Y * dy / M_PER_DEG, lng0 + FLIP_X * dx / (M_PER_DEG * math.cos(math.radians(lat0)))
 
 
 def _quad(lat0: float, lng0: float, dx: float, dy: float, w: float, h: float, rng: np.random.Generator) -> dict:
@@ -125,11 +118,19 @@ def _quad(lat0: float, lng0: float, dx: float, dy: float, w: float, h: float, rn
 
 
 def _write_kawasan() -> None:
+    """Salin potongan peta kawasan resmi untuk area demo; hapus batas ilustrasi versi lama."""
     folder = DATA_DIR / "kawasan"
     folder.mkdir(parents=True, exist_ok=True)
-    f = folder / "kawasan_demo.geojson"
-    if not f.exists():
-        f.write_text(json.dumps(KAWASAN, indent=2), encoding="utf-8")
+    old = folder / "kawasan_demo.geojson"
+    if old.exists():
+        try:
+            if all((f.get("properties") or {}).get("is_demo") for f in json.loads(old.read_text(encoding="utf-8"))["features"]):
+                old.unlink()
+        except (OSError, ValueError, KeyError):
+            pass
+    dst = folder / KAWASAN_FILE.name
+    if not dst.exists() or dst.read_bytes() != KAWASAN_FILE.read_bytes():
+        dst.write_bytes(KAWASAN_FILE.read_bytes())
     kawasan_svc.clear_caches()
 
 
@@ -144,8 +145,8 @@ def seed(reset: bool = False) -> dict:
     with SessionLocal() as db:
         if db.scalar(select(Plot.id).limit(1)) is not None:
             return {"plots": 0, "skipped": True}
-        coop = Cooperative(name="KUD Tani Makmur (demo)", village="Sungai Harapan", district="Ukui, Pelalawan")
-        mill = Mill(name="PKS Sejahtera (demo)", lat=CENTER[0] - 0.03, lng=CENTER[1] - 0.04)
+        coop = Cooperative(name="KUD Tani Makmur (demo)", village="Sungai Harapan", district="sekitar TN Tesso Nilo, Riau")
+        mill = Mill(name="PKS Sejahtera (demo)", lat=CENTER[0] + 0.006, lng=CENTER[1] + 0.032)
         db.add_all([coop, mill])
         db.flush()
 
@@ -232,7 +233,7 @@ def seed(reset: bool = False) -> dict:
                              "ai_watershed" if rng.random() < 0.6 else "manual")
 
         for p in plots:
-            # kebun contoh fiktif: kawasan dicek ke peta ilustrasi saja agar demo selalu sama
+            # kebun contoh: kawasan dicek ke salinan lokal peta KLHK 2017 agar demo sama walau tanpa internet
             plot_svc.apply_analysis(db, p, force_demo=True, kawasan_policy="lokal")
             # analisis lama dibuat seolah-olah dijalankan saat kebun didaftarkan
             p.analyses[0].created_at = p.created_at + timedelta(minutes=3)

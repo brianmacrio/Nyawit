@@ -13,16 +13,16 @@ import time
 from ..services.satellite import live
 from ..services.timeseries import detect_changes
 
-# kebun contoh ~2 ha di Pelalawan, Riau
-GEOM = {"type": "Polygon", "coordinates": [[[101.8851, -0.1705], [101.8866, -0.1705], [101.8866, -0.1717],
-                                             [101.8851, -0.1717], [101.8851, -0.1705]]]}
+# kebun contoh ~2 ha di area demo (APL di sisi tenggara TN Tesso Nilo, Riau)
+GEOM = {"type": "Polygon", "coordinates": [[[102.0610, -0.3630], [102.0625, -0.3630], [102.0625, -0.3642],
+                                             [102.0610, -0.3642], [102.0610, -0.3630]]]}
 
 if __name__ == "__main__":
     st = live.status()
     if not st["available"]:
         raise SystemExit(f"Paket belum lengkap: {st['missing']}. Jalankan: pip install -r requirements-live.txt")
     t0 = time.time()
-    layers = live.hansen_layers(GEOM, -0.171, 101.886)
+    layers = live.hansen_layers(GEOM, -0.3636, 102.0618)
     print("Hansen:", layers, f"({time.time() - t0:.1f} dtk)")
     t0 = time.time()
     dates, vals, src = live.ndvi_series(GEOM)

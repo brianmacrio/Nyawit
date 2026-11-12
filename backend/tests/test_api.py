@@ -56,7 +56,7 @@ def test_auth_and_csrf(c):
 
 def test_role_enforced(c):
     as_(c, "pengepul")
-    g = sq(101.80, -0.30)
+    g = sq(102.095, -0.345)  # APL menurut salinan peta KLHK 2017 di area demo
     r = c.post("/api/plots", json={"farmer_name": "Uji", "village": "Desa", "geometry": g, "consent": True})
     assert r.status_code == 403 and "koperasi" in r.json()["detail"]
     assert c.get("/api/dashboard").status_code == 403
@@ -71,7 +71,7 @@ def test_end_to_end_flow(c):
     # tumpang tindih ditolak
     r = c.post("/api/plots", json={"farmer_name": "Uji Coba", "village": "Desa Uji", "geometry": p1["geometry"], "consent": True})
     assert r.status_code == 409
-    g = sq(101.80, -0.30)
+    g = sq(102.095, -0.345)  # APL menurut salinan peta KLHK 2017 di area demo
     assert c.post("/api/plots", json={"farmer_name": "Uji Coba", "village": "Desa Uji", "geometry": g, "consent": False}).status_code == 422
     r = c.post("/api/plots", json={"farmer_name": "Uji Coba", "village": "Desa Uji", "geometry": g, "consent": True,
                                    "demo_scenario": "hutan_dibuka_2022", "planting_year_declared": 2012})
@@ -98,12 +98,12 @@ def test_registration_with_land_and_readiness(c):
             "witnesses": [{"name": "Ketua Poktan Uji", "relation": "ketua kelompok tani"},
                           {"name": "Tetangga Uji", "relation": "tetangga utara"}],
             "boundary_sides": {"utara": {"jenis": "parit"}, "timur": {"jenis": "kebun", "tetangga": "Pak X"}},
-            "gps": {"lat": -0.3095, "lng": 101.8105, "accuracy_m": 6}}
-    ok = c.post("/api/plots", json={**base, "farmer_name": "Petani Siap", "geometry": sq(101.810, -0.310),
+            "gps": {"lat": -0.3495, "lng": 102.1005, "accuracy_m": 6}}
+    ok = c.post("/api/plots", json={**base, "farmer_name": "Petani Siap", "geometry": sq(102.100, -0.350),
                                     "land_proof": "surat_desa", "stdb_status": "proses"}).json()
     assert ok["readiness"]["ready"], ok["readiness"]
     assert ok["readiness"]["precision"]["level"] == 3 and ok["gps"]["accuracy_m"] == 6
-    nope = c.post("/api/plots", json={**base, "farmer_name": "Petani Belum", "geometry": sq(101.815, -0.310),
+    nope = c.post("/api/plots", json={**base, "farmer_name": "Petani Belum", "geometry": sq(102.103, -0.350),
                                       "land_proof": "surat_desa", "stdb_status": "belum"}).json()
     lahan = next(x for x in nope["readiness"]["checks"] if x["key"] == "lahan")
     assert not nope["readiness"]["ready"] and not lahan["ok"] and "STDB" in lahan["detail"]
@@ -217,3 +217,14 @@ def test_login_rate_limit(c):
     codes = [c.post("/api/auth/login", json={"username": "xx", "password": "y"}).status_code for _ in range(12)]
     assert codes[0] == 401 and codes[-1] == 429
     limiter.reset()
+
+
+def test_demo_plots_use_real_forest_map(c):
+    """Batas kawasan di demo adalah salinan peta KLHK 2017 (GFW), bukan ilustrasi; hanya kebun Rina di dalamnya."""
+    as_(c, "koperasi")
+    areas = c.get("/api/plots/protected-areas").json()
+    assert areas and not any(a["is_demo"] for a in areas) and all(a["gfw_fid"] for a in areas)
+    assert {a["fungsi"] for a in areas} >= {"HP", "KSA_KPA"}
+    seeded = [p for p in c.get("/api/plots").json() if p["code"].startswith("PK-000")]
+    in_kawasan = [p["code"] for p in seeded if "masuk" in (p["risk_headline"] or "") and "Hutan" in p["risk_headline"]]
+    assert in_kawasan == ["PK-00005-Z"]

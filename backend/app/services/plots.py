@@ -197,7 +197,7 @@ def overlaps(db: Session, geom: dict, exclude_id: int | None = None) -> list[dic
 
 
 def kawasan_policy_for(p: Plot) -> str | None:
-    """Kebun contoh fiktif dari seed tetap memakai peta ilustrasi saat dianalisis ulang."""
+    """Kebun contoh dari seed tetap dicek ke salinan lokal peta kawasan saat dianalisis ulang (hasil demo stabil)."""
     prev = p.analyses[0] if p.analyses else None
     prot = (prev.evidence or {}).get("protected") if prev else None
     return "lokal" if isinstance(prot, dict) and prot.get("policy") == "lokal" else None
