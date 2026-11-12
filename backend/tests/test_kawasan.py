@@ -33,6 +33,7 @@ APL = {"rings": [_rect(MID, LAT0 - 0.01, LNG0 + 0.01, LAT0 + 0.01)]}
 
 class FakeArcGIS(BaseHTTPRequestHandler):
     identify_broken = False
+    server_down = False  # meniru ArcGIS Server yang mesinnya mati (HTTP 200 + status error)
     calls: list[str] = []
 
     def log_message(self, *a):  # noqa: D401 - senyap
@@ -42,7 +43,9 @@ class FakeArcGIS(BaseHTTPRequestHandler):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
         FakeArcGIS.calls.append(u.path)
-        if u.path.endswith("/layers"):
+        if FakeArcGIS.server_down:
+            body = {"status": "error", "messages": ["Could not access any server machines. Please contact your system administrator."]}
+        elif u.path.endswith("/layers"):
             body = LAYERS
         elif u.path.endswith("/identify"):
             if FakeArcGIS.identify_broken:
@@ -82,7 +85,9 @@ def fake_service(tmp_path, monkeypatch):
     kawasan.reset_breaker()
     FakeArcGIS.calls = []
     FakeArcGIS.identify_broken = False
+    FakeArcGIS.server_down = False
     yield srv
+    FakeArcGIS.server_down = False
     srv.shutdown()
     kawasan._mem.clear()
     kawasan.reset_breaker()
@@ -123,6 +128,15 @@ def test_query_fallback_decodes_domain(fake_service):
     r = kawasan.lookup(PLOT, "online")
     assert r.checked and r.fungsi == "HL" and 45 <= r.pct <= 55
     assert any(c.endswith("/0/query") for c in FakeArcGIS.calls)
+
+
+def test_server_down_is_reported_not_cached(fake_service):
+    FakeArcGIS.server_down = True
+    r = kawasan.lookup(PLOT, "online")
+    assert not r.checked and r.warnings
+    assert "tidak aktif" in (kawasan._state["last_error"] or "")
+    # daftar layer kosong dari server yang mati tidak boleh disimpan sebagai cache 7 hari
+    assert not (kawasan.KAWASAN_CACHE_DIR / "_layanan.json").exists()
 
 
 def test_offline_falls_back_and_flags(monkeypatch, tmp_path):

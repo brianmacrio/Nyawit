@@ -58,7 +58,9 @@ SAM_CHECKPOINT = Path(_env("PK_SAM_CHECKPOINT", BASE_DIR / "models" / "sam_vit_b
 KAWASAN_SOURCE = _env("PK_KAWASAN_SOURCE", "auto").lower()
 KAWASAN_URL = _env(
     "PK_KAWASAN_URL",
-    "https://geoportal.menlhk.go.id/server/rest/services/SIGAP_Interaktif/Kawasan_Hutan/MapServer",
+    # Sejak KLHK dipecah, domain geoportal.menlhk.go.id tidak aktif lagi. Layanan ini dipakai
+    # oleh "Peta Interaktif" di sigap.kehutanan.go.id.
+    "https://geoportal.planologi.kehutanan.go.id/server/rest/services/Peta_Interaktif_2026/KWSHUTAN_AR_250K/MapServer",
 ).rstrip("/")
 # id layer yang dipakai (mis. "0" atau "0,3"); kosong = dipilih otomatis dari nama layer
 KAWASAN_LAYERS = [int(x) for x in _env("PK_KAWASAN_LAYERS", "").split(",") if x.strip().isdigit()]

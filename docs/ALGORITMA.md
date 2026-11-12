@@ -66,7 +66,8 @@ EUDR tidak hanya meminta bebas deforestasi, tetapi juga lahan yang legal menurut
 dalam kawasan hutan (konservasi, hutan lindung, hutan produksi) tanpa pelepasan kawasan tidak legal. Peta global (JRC, Hansen)
 tidak tahu status hukum ini, jadi kami membaca peta resmi:
 
-1. Sumber: layanan ArcGIS REST *Kawasan Hutan* Kementerian Kehutanan (SIGAP Interaktif, dasar Permen LHK 7/2021).
+1. Sumber: layanan ArcGIS REST *Kawasan Hutan* Kementerian Kehutanan (KWSHUTAN_AR_250K, layanan yang dipakai Peta Interaktif
+   SIGAP, dasar Permen LHK 7/2021). Skalanya 1:250.000, jadi batas di tingkat kebun bisa meleset puluhan sampai ratusan meter.
 2. Area kebun dibagi ke sel grid 0,01° (~1,1 km). Sel yang belum ada di cache diminta lewat operasi `identify` (cadangan:
    `query` per layer), poligon digeneralisasi ~5 m, dipotong sebatas sel, lalu disimpan di disk. Cache membuat setiap sel
    hanya diunduh sekali dan demo tetap jalan saat offline. Bila layanan gagal, aplikasi berhenti mencoba selama 5 menit
@@ -122,7 +123,8 @@ volume, bukti bebas deforestasi dan legalitas. Hanya kebun Siap EUDR yang masuk;
 - Delineate Anything: https://arxiv.org/abs/2504.02534
 - Satelligence × Fairtrade: https://the-european.eu/story-50128/
 - Koltiva × REA Kaltim: https://www.agtechnavigator.com/Article/2025/08/11/tackling-barriers-to-eudr-compliance-for-indonesian-smallholders
-- Layanan peta Kawasan Hutan Kemenhut (SIGAP): https://geoportal.menlhk.go.id/server/rest/services/SIGAP_Interaktif/Kawasan_Hutan/MapServer
+- Layanan peta Kawasan Hutan Kemenhut (dipakai Peta Interaktif SIGAP, skala 1:250.000): https://geoportal.planologi.kehutanan.go.id/server/rest/services/Peta_Interaktif_2026/KWSHUTAN_AR_250K/MapServer
+  (alamat lama geoportal.menlhk.go.id sudah tidak aktif sejak KLHK dipecah)
 - RSPO Independent Smallholder Standard 2024: https://rspo.org/wp-content/uploads/Consolidated-ISH-2024_Adopted_13112024.pdf
 - Permentan No. 33 Tahun 2025 (ISPO): https://peraturan.go.id/files/permentan-no-33-tahun-2025.pdf
 - Pedoman EUDR C/2026/3896: https://eur-lex.europa.eu/eli/C/2026/3896/oj/eng

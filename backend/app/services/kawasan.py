@@ -192,6 +192,9 @@ def _get_json(url: str, params: dict[str, Any], timeout: float | None = None) ->
     if isinstance(data, dict) and "error" in data:
         err = data["error"]
         raise KawasanError(f"layanan menjawab galat {err.get('code')}: {err.get('message')}")
+    if isinstance(data, dict) and data.get("status") == "error":
+        # ArcGIS Server yang mesinnya mati menjawab HTTP 200 + {"status":"error","messages":[...]}
+        raise KawasanError("layanan Kemenhut sedang tidak aktif: " + "; ".join(map(str, data.get("messages") or []))[:200])
     return data
 
 
@@ -222,7 +225,7 @@ def reset_breaker() -> None:
 # --------------------------------------------------------------------------------------
 _EXCL = re.compile(r"perubahan|progres|pengukuhan|tata ?batas|review|rtrw|usulan|indikatif|label|anotasi|annotation|"
                    r"titik|garis|line|point|pal\b", re.I)
-_INCL = re.compile(r"kawasan ?hutan|fungsi|penetapan|penunjukan|\bkh\b", re.I)
+_INCL = re.compile(r"kawasan ?hutan|kwshutan|fungsi|penetapan|penunjukan|\bkh\b", re.I)
 
 
 def _layer_summary(l: dict) -> dict:
@@ -275,6 +278,8 @@ def service_info(refresh: bool = False) -> dict:
             except KawasanError:
                 layers.append(l)
     summ = [_layer_summary(l) for l in layers]
+    if not summ:  # jangan simpan "tidak ada layer" selama 7 hari hanya karena layanan sedang bermasalah
+        raise KawasanError("layanan tidak mengembalikan daftar layer")
     info = {"url": KAWASAN_URL, "fetched_at": datetime.now().isoformat(timespec="seconds"), "layers": summ,
             "selected": select_layers(summ)}
     _write_json(path, info)
