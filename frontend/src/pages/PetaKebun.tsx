@@ -500,7 +500,21 @@ export default function PetaKebun() {
           <div className="legend-row legend-error" role="status">Peta kawasan KLHK 2017 (GFW) tidak bisa dimuat: {gfwStatus.message}</div>
         )}
         {kawasanLayer === "loading" && <div className="legend-row faint">Memuat peta kawasan Kemenhut…</div>}
-        {kawasanLayer === "ok" && <div className="legend-row"><i className="swatch" style={{ borderColor: "#2f6f4f", background: "#7fbf7f88" }} /> Kawasan hutan (Kemenhut, 1:250.000)</div>}
+        {kawasanLayer === "ok" && (
+          <>
+            <div className="legend-row faint small">
+              Peta Kemenhut{meta?.kawasan?.layer_names?.length ? ` (${meta.kawasan.layer_names.join(", ")})` : ""}:
+            </div>
+            {(meta?.kawasan?.legend?.length ? meta.kawasan.legend : []).map((l) => (
+              <div className="legend-row" key={l.label}>
+                <i className="swatch" style={{ borderColor: "#0003", background: `rgb(${l.rgb.join(",")})` }} /> {l.label}
+              </div>
+            ))}
+            {!meta?.kawasan?.legend?.length && (
+              <div className="legend-row"><i className="swatch" style={{ borderColor: "#2f6f4f", background: "#7fbf7f88" }} /> Kawasan hutan (Kemenhut, 1:250.000)</div>
+            )}
+          </>
+        )}
         {kawasanLayer === "error" && (
           <div className="legend-row legend-error" role="status">
             Peta kawasan Kemenhut gagal dimuat: server Kemenhut sedang tidak merespons. Coba lagi nanti.

@@ -432,6 +432,10 @@ export interface Meta {
     cached_cells: number;
     source_label: string;
     gfw?: { enabled: boolean; source_label: string; cached_tiles: number; online: boolean | null; last_error: string | null };
+    /** "gambar" = layanan hanya mengizinkan tampilan peta, status dibaca dari warna gambar peta */
+    mode?: "gambar" | "query" | null;
+    layer_names?: string[];
+    legend?: { label: string; rgb: [number, number, number]; fungsi: string; kawasan: boolean | null }[];
   };
 }
 

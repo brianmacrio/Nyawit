@@ -31,7 +31,7 @@ const MODELS = [
     rows: [
       ["Fungsinya", "Menggabungkan beberapa sumber bukti menjadi status Aman, Perlu cek, atau Berisiko beserta alasannya."],
       ["Data", "Peta tutupan hutan 2020 JRC (akurasi 91%), kehilangan tutupan Hansen/GLAD, peringatan radar RADD (user's accuracy 97,6%), peta sawit Forest Data Partnership/Descals, peta Kawasan Hutan Kementerian Kehutanan, dan time series di atas."],
-      ["Cek kawasan otomatis", "Saat kebun digambar, aplikasi menanyakan poligon kawasan hutan di lokasi itu ke layanan peta resmi Kemenhut, membaca fungsinya (konservasi, hutan lindung, hutan produksi, APL), lalu menghitung persentase luas kebun di tiap fungsi. Bila server Kemenhut tidak terjangkau, aplikasi otomatis memakai Peta Kawasan Hutan KLHK 2017 yang disediakan Global Forest Watch, dan paspor menyebut sumber mana yang dipakai. Hasilnya disimpan di cache agar tetap jalan saat offline. Kebun yang lebih dari 5% masuk kawasan hutan langsung berstatus Berisiko. Tidak ada batas kawasan yang digambar tangan."],
+      ["Cek kawasan otomatis", "Saat kebun digambar, aplikasi menanyakan poligon kawasan hutan di lokasi itu ke layanan peta resmi Kemenhut, membaca fungsinya (konservasi, hutan lindung, hutan produksi, APL), lalu menghitung persentase luas kebun di tiap fungsi. Layanan Kemenhut terbaru (revisi Juni 2026) hanya mengizinkan tampilan peta, jadi aplikasi membaca gambarnya: setiap fungsi kawasan punya warna tetap di legenda resmi (kuning = hutan produksi tetap, ungu = konservasi, putih = APL, dan seterusnya), lalu setiap piksel di bawah kebun dicocokkan ke warna itu. Ini aturan pasti, bukan model AI, karena warnanya ditetapkan oleh pemilik peta. Bila server Kemenhut tidak terjangkau, aplikasi otomatis memakai Peta Kawasan Hutan KLHK 2017 yang disediakan Global Forest Watch, dan paspor menyebut sumber mana yang dipakai. Hasilnya disimpan di cache agar tetap jalan saat offline. Kebun yang lebih dari 5% masuk kawasan hutan langsung berstatus Berisiko. Tidak ada batas kawasan yang digambar tangan."],
       ["Algoritma", "Aturan 'convergence of evidence' dari Whisp (FAO), ditambah pembeda peremajaan dan deforestasi: lahan yang tahun 2020 sudah kebun sawit lalu dibuka lagi adalah peremajaan (mis. PSR), bukan deforestasi."],
       ["Transparansi", "Aturannya terbuka di kode (evidence.py). Setiap paspor menampilkan bukti, sumber, dan tingkat keyakinan."],
       ["Batasannya", "Peta global kurang tajam untuk kebun di bawah 1 ha. Peta kawasan hutan berskala kecil dan bisa tertinggal dari SK pelepasan terbaru, jadi status 'masuk kawasan' adalah sinyal untuk diverifikasi (sertifikat, SK pelepasan), bukan vonis."],
@@ -76,7 +76,7 @@ export default function Transparansi() {
                   ? "peta Kemenhut tidak terjangkau, memakai cadangan Peta Kawasan Hutan KLHK 2017 (GFW)"
                   : "peta Kemenhut tidak terjangkau, memakai cache/peta lokal"
                 : meta.kawasan.gfw?.enabled
-                  ? "otomatis ke peta Kemenhut, cadangan KLHK 2017 (GFW)"
+                  ? `otomatis ke peta Kemenhut${meta.kawasan.mode === "gambar" ? " (dibaca dari gambar peta)" : ""}, cadangan KLHK 2017 (GFW)`
                   : "otomatis ke peta Kemenhut"}
           </strong>
           {meta.kawasan && meta.kawasan.cached_cells > 0 ? ` (${meta.kawasan.cached_cells} sel tersimpan)` : ""}. Batas EUDR: deforestasi
