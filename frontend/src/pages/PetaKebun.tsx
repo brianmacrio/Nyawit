@@ -25,6 +25,7 @@ import type {
   StdbStatus,
 } from "../lib/types";
 import { BaseLayers } from "../components/MapBase";
+import { useKawasanLayerStatus } from "../components/KawasanLayer";
 import { PassportPanel } from "../components/PassportPanel";
 import { Notice, Spinner, StatusTag } from "../components/ui";
 
@@ -160,6 +161,7 @@ export default function PetaKebun() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<Risk | "all" | "siap">("all");
   const [mode, setMode] = useState<Mode>("idle");
+  const kawasanLayer = useKawasanLayerStatus();
   const [draft, setDraft] = useState<GeoPolygon | null>(null);
   const [ai, setAi] = useState<DelineateResult | null>(null);
   const [aiErr, setAiErr] = useState<string | null>(null);
@@ -471,7 +473,14 @@ export default function PetaKebun() {
         {areas.length > 0 && (
           <div className="legend-row">
             <i className="swatch" style={{ borderColor: "#ff6b5e", borderStyle: "dashed" }} />{" "}
-            {areas.every((a) => a.is_demo) ? "Kawasan konservasi (ilustrasi)" : "Kawasan hutan (peta lokal)"}
+            {areas.every((a) => a.is_demo) ? "Kawasan konservasi ilustrasi demo (bukan peta resmi)" : "Kawasan hutan (peta lokal)"}
+          </div>
+        )}
+        {kawasanLayer === "loading" && <div className="legend-row faint">Memuat peta kawasan Kemenhut…</div>}
+        {kawasanLayer === "ok" && <div className="legend-row"><i className="swatch" style={{ borderColor: "#2f6f4f", background: "#7fbf7f88" }} /> Kawasan hutan (Kemenhut, 1:250.000)</div>}
+        {kawasanLayer === "error" && (
+          <div className="legend-row legend-error" role="status">
+            Peta kawasan Kemenhut gagal dimuat: server Kemenhut sedang tidak merespons. Coba lagi nanti.
           </div>
         )}
       </div>

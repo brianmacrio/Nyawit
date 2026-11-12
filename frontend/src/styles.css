@@ -515,3 +515,7 @@ textarea { resize: vertical; min-height: 64px; }
   .page { padding: 0; }
   .id-card { box-shadow: none; }
 }
+
+/* Status lapisan kawasan Kemenhut di keterangan peta */
+.map-legend { max-width: 300px; }
+.legend-error { color: var(--risiko); font-weight: 600; line-height: 1.35; }
