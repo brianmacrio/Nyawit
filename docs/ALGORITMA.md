@@ -92,7 +92,23 @@ tidak tahu status hukum ini, jadi kami membaca peta resmi:
      2017 bisa tertinggal dari SK sesudahnya; analisis ulang memakai peta Kemenhut begitu tersedia.
    - Peta aplikasi menampilkan lapisan "Kawasan hutan KLHK 2017 (otomatis, GFW)" untuk area yang sedang dilihat (zoom 12+),
      sehingga batas kawasan di mana pun di Indonesia muncul tanpa digambar.
-7. Data demo: kebun contoh ditempatkan di Areal Penggunaan Lain menurut peta yang sama (area "Kebun Swadaya" di sisi tenggara
+7. Peta Kemenhut yang hanya bisa ditampilkan (12 Nov 2026). Layanan `KWSHUTAN_AR_250K` (layer
+   `KWSHUTAN_AR_250K_JUNI2026_REV1`) hanya punya kemampuan "Map": `identify` dan `query` ditolak (HTTP 400), tetapi gambar
+   peta (`export`) boleh diminta. Status kawasan dibaca dari gambar itu (`services/kawasan_raster.py`):
+   - Palet diambil dari renderer resmi layanan (uniqueValue pada kolom `FUNGSIKWS`), misalnya Kawasan Konservasi 173,63,255;
+     Hutan Lindung 2,173,0; Hutan Produksi Tetap 255,255,0; Hutan Produksi Terbatas 138,242,0; HPK 255,94,255;
+     Area Penggunaan Lain 255,255,255; Tubuh Air 0,197,255. Label dipetakan ke fungsi dengan aturan teks yang sama.
+   - Per sel 0,01 derajat diminta PNG 512 x 512 dalam EPSG:4326 (~2,2 m per piksel), lalu setiap warna unik dicocokkan ke warna
+     palet terdekat. Piksel tepi hasil anti-alias (campuran dua warna palet) ikut warna yang lebih dekat; piksel tembus pandang
+     dianggap tanpa data; piksel buram dengan warna asing dicatat "fungsi tidak terbaca" sehingga kebun menjadi Perlu cek,
+     bukan Aman, bila simbol peta berubah.
+   - Piksel per label diubah menjadi poligon (rentang per baris digabung lalu disatukan), disimpan di cache seperti hasil
+     `query`, lalu persentase luas kebun di tiap fungsi dihitung seperti biasa. Paspor menulis "dibaca dari gambar peta resmi".
+   - Uji silang 12 Nov 2026 di browser: 22 kebun contoh 100% APL dan kebun Rina 100% Hutan Produksi menurut peta Juni 2026,
+     sama dengan hasil peta KLHK 2017.
+   - Ini bukan AI dan sengaja tidak dibuat AI: warnanya ditetapkan pemilik peta, jadi pencocokan pasti lebih tepat dan bisa
+     diaudit daripada model yang dilatih.
+8. Data demo: kebun contoh ditempatkan di Areal Penggunaan Lain menurut peta yang sama (area "Kebun Swadaya" di sisi tenggara
    TN Tesso Nilo, Riau). Lokasi demo lama ternyata berada di dalam TN Tesso Nilo menurut peta resmi, jadi seluruh kebun contoh
    dipindahkan. Potongan peta di sekitar lokasi demo disimpan di `app/seed_data/` agar demo tetap jalan tanpa internet;
    satu kebun (Rina Wati) sengaja diletakkan di Hutan Produksi.

@@ -72,5 +72,9 @@ Rincian slot: 1 menit persiapan laptop dan verifikasi localhost, **7 menit prese
 - *Batas kawasan hutan itu digambar sendiri?* Tidak. Sumber utama peta Kawasan Hutan Kemenhut; bila servernya mati (seperti
   12 Nov 2026), aplikasi otomatis memakai Peta Kawasan Hutan KLHK 2017 dari Global Forest Watch, dan paspor menyebut sumbernya.
   Satelit tidak bisa melihat status hukum lahan; yang dilihat satelit adalah tutupan pohon dan riwayatnya.
+- *Bagian mana yang AI, dan kenapa membaca peta kawasan tidak pakai AI?* AI dipakai untuk hal yang tidak punya jawaban pasti:
+  menggambar batas kebun dari citra, membaca riwayat lahan dari ratusan citra (COLD-lite), dan mencari pengepul yang janggal
+  (Isolation Forest). Status kawasan hutan punya jawaban pasti di peta resmi: warnanya ditetapkan Kemenhut, jadi aplikasi
+  mencocokkan warna piksel dengan legenda resmi. Model yang dilatih justru bisa salah pada dasar hukum.
 - *Status hutan lindung dari mana?* Peta Kawasan Hutan resmi Kemenhut (SIGAP), dicek otomatis saat kebun digambar. Peta resmi
   bisa tertinggal dari SK pelepasan terbaru, jadi petani bisa mengajukan keberatan dengan bukti.

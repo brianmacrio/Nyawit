@@ -128,10 +128,10 @@ Struktur folder:
 backend/app/
   main.py, config.py, db.py (migrasi aditif), models.py, schemas.py, security.py, seed.py
   routers/   auth, plots, ai, supply, verification, shipments, dashboard, meta
-  services/  delineation, tiles, timeseries (COLD-lite), evidence, kawasan, kawasan_gfw + mvt, satellite/{demo,live},
+  services/  delineation, tiles, timeseries (COLD-lite), evidence, kawasan (+ kawasan_raster), kawasan_gfw + mvt, satellite/{demo,live},
              yield_model, supply_guard, readiness (Siap EUDR), verification, shipment, audit, geo
   scripts/   validate, check_live, check_kawasan
-backend/tests/   53 tes pytest
+backend/tests/   62 tes pytest
 frontend/src/
   pages/     Beranda, Masuk, PetaKebun, Pengepul, Pabrik, Verifikasi, Transparansi, CekPaspor, KartuPaspor
   components/ PassportPanel, NdviChart, MapBase, KawasanLayer, GfwKawasanLayer, QrScanner, RoleGate, ui
@@ -147,7 +147,7 @@ frontend/src/
 | Database | SQLite (WAL), migrasi aditif otomatis |
 | AI & geospasial | NumPy, OpenCV (headless), scikit-learn (Isolation Forest), Shapely, Pillow; opsional Segment Anything (PyTorch) |
 | API / layanan pihak ketiga | Esri World Imagery (citra), Global Forest Watch tiles (kehilangan tutupan pohon; Peta Kawasan Hutan KLHK 2017 sebagai tile vektor), Geoportal Kemenhut (Kawasan Hutan, ArcGIS REST), Microsoft Planetary Computer (Sentinel-2, mode live), Google Cloud Storage (Hansen GFC, mode live) |
-| Pengujian & mutu | pytest (53 tes, termasuk server peta tiruan), Playwright (uji alur di browser saat pengembangan) |
+| Pengujian & mutu | pytest (62 tes, termasuk server peta tiruan), Playwright (uji alur di browser saat pengembangan) |
 | Deploy | Docker (multi-stage), Render Blueprint (`render.yaml`) |
 
 Tidak ada layanan AI pihak ketiga (API LLM dll.) yang dipanggil aplikasi; semua model berjalan di CPU server sendiri.
@@ -227,6 +227,11 @@ Akun demo hanya untuk penilaian. Matikan di produksi dengan `PK_DEMO_ACCOUNTS=0`
 | Penjaga pengepul | Model kapasitas PPKS + Isolation Forest (scikit-learn) dengan alasan z-score | Halaman pengepul, dasbor pabrik | Pencuci TBS di peringkat atas |
 | Pemilih sampel verifikasi | Pemeringkatan risiko + undian berbobot luas (rumus RSPO ISH) | Halaman verifikasi | – |
 
+**Bagian yang sengaja bukan AI.** Status kawasan hutan dibaca dengan aturan pasti, bukan model: dari poligon peta resmi,
+atau, untuk layanan Kemenhut Juni 2026 yang hanya mengizinkan tampilan, dari warna gambar petanya (setiap fungsi kawasan punya
+warna tetap di renderer resmi; piksel di bawah kebun dicocokkan ke warna itu lalu diubah kembali menjadi poligon). Peta itu
+dasar hukum, jadi hasilnya harus bisa diaudit dan sama setiap kali; model yang dilatih hanya akan menambah kemungkinan salah.
+
 Semua keluaran AI adalah draf atau sinyal: batas dikoreksi petani dan saksi, status "perlu cek" diteruskan ke verifikasi
 lapangan, skor anomali hanya urutan audit, dan keputusan akhir atas keberatan diambil manusia dengan alasan tertulis.
 Rincian: [docs/ALGORITMA.md](docs/ALGORITMA.md), [docs/VALIDASI.md](docs/VALIDASI.md), halaman **Cara kerja AI** di aplikasi.
@@ -263,7 +268,7 @@ kode, tes, serta dokumentasi (diperbolehkan guidebook). Seluruh kode ditinjau, d
 |---|---|
 | Kesesuaian Masalah & Solusi (25%) | Empat peran nyata; syarat Siap EUDR mengikuti EUDR, ISPO (Permentan 33/2025), dan RSPO; sertifikat tanah tidak diwajibkan; pembeda peremajaan agar petani PSR tidak dirugikan; keberatan petani |
 | Inovasi & Implementasi Teknologi (25%) | 4 komponen AI yang masing-masing mengubah keputusan; riwayat satelit 5+ tahun; cek kawasan hutan otomatis; penjaga pengepul (celah yang belum ditutup solusi lain); sampel verifikasi berbasis risiko |
-| Rekayasa Perangkat Lunak (25%) | Arsitektur berlapis, tipe ketat (Pydantic + TypeScript strict), 53 tes otomatis, migrasi aditif, Docker + Render, dokumentasi API otomatis, setup satu perintah |
+| Rekayasa Perangkat Lunak (25%) | Arsitektur berlapis, tipe ketat (Pydantic + TypeScript strict), 62 tes otomatis, migrasi aditif, Docker + Render, dokumentasi API otomatis, setup satu perintah |
 | Desain & Pengalaman Pengguna (15%) | GPS "saya di kebun" alih-alih membaca citra; pertanyaan per sisi batas; satu alur per peran; checklist Siap EUDR yang menyebut apa yang kurang; kartu QR cetak untuk petani tanpa ponsel |
 | Etika & Keamanan Digital (10%) | Lihat bagian Keamanan dan privasi; transparansi AI di halaman Cara kerja AI; atribusi lengkap di bawah |
 
@@ -271,7 +276,7 @@ kode, tes, serta dokumentasi (diperbolehkan guidebook). Seluruh kode ditinjau, d
 
 ```bat
 cd backend
-.venv\Scripts\python -m pytest -q              :: 53 tes
+.venv\Scripts\python -m pytest -q              :: 62 tes
 .venv\Scripts\python -m app.scripts.validate   :: menulis docs/VALIDASI.md
 ```
 
