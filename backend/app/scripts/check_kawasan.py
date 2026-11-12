@@ -81,6 +81,14 @@ def main() -> int:
         dom = f" | domain kode: {', '.join(l['domains'])}" if l.get("domains") else ""
         print(f" {mark} [{l['id']}] {l['name']} ({l.get('geometryType') or l.get('type')}) kolom: {flds}{dom}")
     print("   (* = dipakai otomatis; ubah dengan PK_KAWASAN_LAYERS=0,3)")
+    print(f"Kemampuan layanan: {info.get('capabilities') or '?'}")
+    if info.get("render_only"):
+        print("Layanan hanya mengizinkan tampilan peta -> status dibaca dari GAMBAR peta. Warna dari renderer layanan:")
+        for l in info["layers"]:
+            if l["id"] in info["selected"]:
+                for p in l.get("palette") or []:
+                    code = kawasan.classify({"fungsi_teks": p["label"]})
+                    print(f"   RGB {tuple(p['rgb'])} = {p['label']} -> {code}")
 
     unknown_vals: dict[str, set] = {}
     for lat, lng, label in pts:
@@ -100,6 +108,11 @@ def main() -> int:
             if code == "?":
                 for k, v in f["attrs"].items():
                     unknown_vals.setdefault(k, set()).add(str(v))
+        d = 0.00045  # kotak ~100 m tepat di titik
+        sq = {"type": "Polygon", "coordinates": [[[lng - d, lat - d], [lng + d, lat - d], [lng + d, lat + d], [lng - d, lat + d], [lng - d, lat - d]]]}
+        r = kawasan.lookup(sq, "online")
+        parts = ", ".join(f"{p['pct']:.0f}% {p['label']}" for p in r.parts) or "tidak ada poligon kawasan"
+        print(f"  Kotak 100 m di titik: {r.pct:.0f}% kawasan hutan -> {parts}")
         d = 0.0045  # kotak ~1 km di sekitar titik
         sq = {"type": "Polygon", "coordinates": [[[lng - d, lat - d], [lng + d, lat - d], [lng + d, lat + d], [lng - d, lat + d], [lng - d, lat - d]]]}
         r = kawasan.lookup(sq, "online")

@@ -8,6 +8,9 @@ dasar hukum Permen LHK 7/2021. Untuk setiap kebun:
    poligon kawasan hutan yang beririsan dengan sel, digeneralisasi ~5 m, lalu dipotong
    sebatas sel dan disimpan di disk. Cache membuat demo tetap jalan saat internet putus
    dan setiap sel hanya diunduh sekali.
+   Layanan yang hanya mengizinkan tampilan peta (kemampuan "Map", seperti peta Kemenhut
+   Juni 2026) dibaca dari gambarnya: warna setiap fungsi diambil dari renderer layanan,
+   lalu piksel diubah kembali menjadi poligon (lihat kawasan_raster.py).
 3. Fungsi kawasan (konservasi, HL, HPT, HP, HPK, APL) dibaca dari atribut: domain kode
    layanan, teks/singkatan, atau tabel kode buatan pengguna `data/kawasan/kode_fungsi.json`.
 4. Persentase luas kebun di setiap fungsi dihitung dengan shapely.
@@ -40,16 +43,18 @@ from shapely.ops import unary_union
 from shapely.validation import make_valid
 
 from ..config import DATA_DIR, KAWASAN_CACHE_DIR, KAWASAN_LAYERS, KAWASAN_SOURCE, KAWASAN_TIMEOUT, KAWASAN_URL
-from . import kawasan_gfw
+from . import kawasan_gfw, kawasan_raster
 
 UA = "PasporKebun/1.0 (cek status kawasan hutan kebun petani; MVP hackathon)"
 CELL_DEG = 0.01
 CACHE_DAYS = 30
 SERVICE_CACHE_DAYS = 7
+SERVICE_INFO_V = 2  # naikkan bila isi _layanan.json berubah
 BREAKER_S = 300  # setelah gagal, jangan coba online lagi selama 5 menit (agar aplikasi tetap cepat)
 GENERALIZE_DEG = 0.00005  # ~5,5 m; jauh di bawah ketelitian peta kawasan
 T_SIGNIFICANT = 5.0
 SOURCE_LABEL = "Peta Kawasan Hutan, Kementerian Kehutanan (SIGAP, Permen LHK 7/2021)"
+RENDER_ONLY_NOTE = "dibaca dari gambar peta resmi"
 
 FUNGSI: dict[str, dict[str, Any]] = {
     "KSA_KPA": {"label": "Kawasan konservasi", "kawasan": True,
@@ -241,6 +246,7 @@ def _layer_summary(l: dict) -> dict:
     return {
         "id": l.get("id"), "name": l.get("name", ""), "type": l.get("type"), "geometryType": l.get("geometryType"),
         "subLayerIds": l.get("subLayerIds"), "maxRecordCount": l.get("maxRecordCount"), "fields": fields, "domains": domains,
+        "palette": kawasan_raster.palette_from_layer(l),
     }
 
 
@@ -262,14 +268,20 @@ def service_info(refresh: bool = False) -> dict:
         try:
             info = json.loads(path.read_text(encoding="utf-8"))
             age = datetime.now() - datetime.fromisoformat(info["fetched_at"])
-            if info.get("url") == KAWASAN_URL and age < timedelta(days=SERVICE_CACHE_DAYS):
+            if (info.get("url") == KAWASAN_URL and info.get("v") == SERVICE_INFO_V
+                    and age < timedelta(days=SERVICE_CACHE_DAYS)):
                 return info
         except Exception:  # noqa: BLE001
             pass
     try:
+        root = _get_json(KAWASAN_URL, {"f": "json"})
+    except KawasanError:
+        root = {}  # sebagian server tidak menyediakan info akar; kemampuan dianggap tidak diketahui
+    try:
         layers = _get_json(f"{KAWASAN_URL}/layers", {"f": "json"}).get("layers", [])
     except KawasanError:
-        root = _get_json(KAWASAN_URL, {"f": "json"})
+        if not root:
+            raise
         layers = []
         for l in root.get("layers", [])[:60]:
             if l.get("subLayerIds"):
@@ -282,8 +294,11 @@ def service_info(refresh: bool = False) -> dict:
     summ = [_layer_summary(l) for l in layers]
     if not summ:  # jangan simpan "tidak ada layer" selama 7 hari hanya karena layanan sedang bermasalah
         raise KawasanError("layanan tidak mengembalikan daftar layer")
-    info = {"url": KAWASAN_URL, "fetched_at": datetime.now().isoformat(timespec="seconds"), "layers": summ,
-            "selected": select_layers(summ)}
+    caps = str(root.get("capabilities") or "")
+    info = {"v": SERVICE_INFO_V, "url": KAWASAN_URL, "fetched_at": datetime.now().isoformat(timespec="seconds"),
+            "layers": summ, "selected": select_layers(summ), "capabilities": caps,
+            # hanya "Map": identify/query ditolak, jadi status dibaca dari gambar peta
+            "render_only": bool(caps) and "query" not in caps.lower()}
     _write_json(path, info)
     return info
 
@@ -382,6 +397,38 @@ def _features_from_results(results: list[dict], cell, layer_names: dict[int, str
     return out
 
 
+def _palette(info: dict, sel: list[int]) -> list[dict]:
+    pal: list[dict] = []
+    for l in info["layers"]:
+        if l["id"] in sel:
+            pal += l.get("palette") or []
+    return pal
+
+
+def _fetch_cell_image(i: int, j: int, info: dict, sel: list[int]) -> list[dict]:
+    """Sel dibaca dari gambar export (layanan yang hanya mengizinkan tampilan peta)."""
+    pal = _palette(info, sel)
+    if not pal:
+        raise KawasanError("layanan hanya mengizinkan tampilan peta dan warna fungsinya tidak terbaca dari renderer")
+    xmin, ymin, xmax, ymax = _cell_bounds(i, j)
+    px = kawasan_raster.IMG_PX
+    q = urllib.parse.urlencode({
+        "bbox": f"{xmin},{ymin},{xmax},{ymax}", "bboxSR": 4326, "imageSR": 4326, "size": f"{px},{px}",
+        "format": "png32", "transparent": "true", "dpi": 96, "layers": "show:" + ",".join(map(str, sel)), "f": "image",
+    })
+    req = urllib.request.Request(f"{KAWASAN_URL}/export?{q}", headers={"User-Agent": UA, "Accept": "image/png"})
+    try:
+        with urllib.request.urlopen(req, timeout=KAWASAN_TIMEOUT, context=_ssl_context()) as r:
+            ctype, data = r.headers.get("Content-Type", ""), r.read()
+    except Exception as e:  # noqa: BLE001
+        raise KawasanError(f"{e.__class__.__name__}: {e}") from e
+    if not data.startswith(b"\x89PNG"):
+        raise KawasanError(f"layanan tidak mengirim gambar peta ({ctype or 'tanpa tipe'}): {data[:120]!r}")
+    names = {l["id"]: l["name"] for l in info["layers"]}
+    lid = sel[0] if sel else None
+    return kawasan_raster.features_from_image(data, (xmin, ymin, xmax, ymax), pal, lid, names.get(lid, ""))
+
+
 def fetch_cell(i: int, j: int) -> dict:
     info = service_info()
     sel = info.get("selected") or []
@@ -390,6 +437,10 @@ def fetch_cell(i: int, j: int) -> dict:
     xmin, ymin, xmax, ymax = _cell_bounds(i, j)
     cell = box(xmin - 1e-6, ymin - 1e-6, xmax + 1e-6, ymax + 1e-6)
     env = f"{xmin},{ymin},{xmax},{ymax}"
+    if info.get("render_only"):
+        feats = _fetch_cell_image(i, j, info, sel)
+        return {"v": 1, "cell": [i, j], "bounds": [xmin, ymin, xmax, ymax], "service": KAWASAN_URL, "method": "gambar",
+                "layers": sel, "fetched_at": datetime.now().isoformat(timespec="seconds"), "features": feats}
     method = "identify"
     try:
         data = _get_json(f"{KAWASAN_URL}/identify", {
@@ -548,6 +599,8 @@ def lookup(geom: dict, policy: str | None = None) -> KawasanResult:
     fetched: list[str] = []
     stale = False
 
+    methods: set[str] = set()
+    layer_names: set[str] = set()
     if policy in ("auto", "online"):
         cells = cells_for(plot.bounds)
         got = 0
@@ -558,6 +611,8 @@ def lookup(geom: dict, policy: str | None = None) -> KawasanResult:
             got += 1
             stale |= how == "cache_lama"
             fetched.append(data["fetched_at"])
+            methods.add(data.get("method", ""))
+            layer_names |= {f.get("layer_name") for f in data["features"] if f.get("layer_name")}
             for f in data["features"]:
                 g = shape(f["geometry"])
                 if not g.intersects(plot):
@@ -596,6 +651,8 @@ def lookup(geom: dict, policy: str | None = None) -> KawasanResult:
     if local_covers:
         local_labels |= {a["source_label"] for a in local_areas() if a.get("source_label") and not a["is_demo"]}
     for la in local_areas():
+        if la.get("gfw_fid") is not None and (kemenhut_ok or gfw_ok):
+            continue  # salinan lokal data GFW 2017: sudah diwakili sumber online yang dipakai (Kemenhut lebih baru)
         g = _polygonal(shape(la["geometry"]))
         if g is None or not g.intersects(plot):
             continue
@@ -645,7 +702,11 @@ def lookup(geom: dict, policy: str | None = None) -> KawasanResult:
     if kemenhut_ok:
         source = "kemenhut"
         when = max(fetched) if fetched else None
-        label = SOURCE_LABEL + (f", diambil {_fmt_date(when)}" if when else "")
+        label = SOURCE_LABEL
+        if "gambar" in methods:
+            label = "Peta Kawasan Hutan Kemenhut" + (f" ({', '.join(sorted(layer_names))})" if layer_names else "") + \
+                    f", {RENDER_ONLY_NOTE}"
+        label += f", diambil {_fmt_date(when)}" if when else ""
     elif gfw_ok:
         source, when = "klhk_gfw", gfw_when
         label = kawasan_gfw.SOURCE_LABEL + (f", diambil {_fmt_date(when)}" if when else "")
@@ -679,12 +740,19 @@ def lookup(geom: dict, policy: str | None = None) -> KawasanResult:
 def status() -> dict:
     n = len(list(KAWASAN_CACHE_DIR.glob("*_*.json"))) if KAWASAN_CACHE_DIR.exists() else 0
     selected = None
+    info: dict = {}
     p = KAWASAN_CACHE_DIR / "_layanan.json"
     if p.exists():
         try:
-            selected = json.loads(p.read_text(encoding="utf-8")).get("selected")
+            info = json.loads(p.read_text(encoding="utf-8"))
+            selected = info.get("selected")
         except Exception:  # noqa: BLE001
-            selected = None
+            info, selected = {}, None
+    legend = []
+    for item in _palette(info, selected or []) if info.get("layers") else []:
+        code = classify({"fungsi_teks": item["label"]})
+        if not any(x["label"] == item["label"] for x in legend):
+            legend.append({"label": item["label"], "rgb": item["rgb"], "fungsi": code, "kawasan": FUNGSI[code]["kawasan"]})
     return {
         "policy": KAWASAN_SOURCE,
         "service": KAWASAN_URL,
@@ -694,5 +762,8 @@ def status() -> dict:
         "last_error": _state["last_error"],
         "cached_cells": n,
         "source_label": SOURCE_LABEL,
+        "mode": ("gambar" if info.get("render_only") else "query") if info else None,
+        "layer_names": [l["name"] for l in info.get("layers", []) if l["id"] in (selected or [])],
+        "legend": legend,
         "gfw": kawasan_gfw.status(),
     }
