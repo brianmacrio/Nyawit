@@ -176,7 +176,9 @@ def tiles_for_bounds(bounds: tuple[float, float, float, float], z: int) -> list[
 
 def decode(data: bytes) -> dict[str, dict]:
     """{nama_layer: {"extent": int, "version": int, "features": [{"id", "type", "properties", "parts"}]}}"""
-    if data[:2] == b"\x1f\x8b":
+    for _ in range(3):  # tile bisa dikirim terkompresi (Content-Encoding: gzip), kadang dua lapis
+        if data[:2] != b"\x1f\x8b":
+            break
         data = gzip.decompress(data)
     layers: dict[str, dict] = {}
     for num, _wt, lbuf in _fields(data):

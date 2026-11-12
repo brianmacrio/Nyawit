@@ -1,4 +1,5 @@
 """Cadangan peta kawasan KLHK 2017 (Global Forest Watch): pembaca tile vektor + alur cek kebun."""
+import gzip
 import math
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -98,6 +99,7 @@ def test_polygon_holes_and_parts_follow_winding():
 # ------------------------------------------------------------------ alur cek kebun
 class FakeTiles(BaseHTTPRequestHandler):
     down = False
+    fail_first = 0  # jumlah jawaban HTTP 500 sebelum tile dikirim (meniru server GFW yang masih membuat tile)
     calls: list[str] = []
 
     def log_message(self, *a):
@@ -105,8 +107,9 @@ class FakeTiles(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802
         FakeTiles.calls.append(self.path)
-        if FakeTiles.down:
-            self.send_response(503)
+        if FakeTiles.down or FakeTiles.fail_first > 0:
+            FakeTiles.fail_first -= 1
+            self.send_response(500 if not FakeTiles.down else 503)
             self.end_headers()
             return
         z, x, y = self.path.removesuffix(".pbf").split("/")[-3:]
@@ -116,8 +119,13 @@ class FakeTiles(BaseHTTPRequestHandler):
         elif (int(x), int(y)) == SYN_TILE:
             body = _encode_polygon_tile([[(0, 0), (1000, 0), (1000, 1000), (0, 1000)]])
         if body is not None:
+            gz = "gzip" in (self.headers.get("Accept-Encoding") or "")
+            if gz:
+                body = gzip.compress(body)
             self.send_response(200)
             self.send_header("Content-Type", "application/x-protobuf")
+            if gz:
+                self.send_header("Content-Encoding", "gzip")
             self.end_headers()
             self.wfile.write(body)
         else:
@@ -142,7 +150,9 @@ def gfw(tmp_path, monkeypatch):
     kawasan_gfw.clear_caches()
     kawasan.reset_breaker()
     FakeTiles.down = False
+    FakeTiles.fail_first = 0
     FakeTiles.calls = []
+    monkeypatch.setattr(kawasan_gfw, "RETRY_WAIT_S", (0.01, 0.01))
     yield srv
     srv.shutdown()
     kawasan_gfw.clear_caches()
@@ -198,6 +208,23 @@ def test_plot_outside_is_checked_and_clear(gfw):
 def test_missing_tile_is_an_error_not_clear(gfw):
     r = kawasan.lookup(_sq(103.5, -0.5), "gfw")  # server menjawab 404
     assert not r.checked and r.warnings
+
+
+def test_transient_server_error_is_retried(gfw):
+    FakeTiles.fail_first = 1
+    lng, lat = _points_in_tile(inside=True)
+    r = kawasan.lookup(_sq(lng, lat), "gfw")
+    assert r.checked and r.fungsi == "KSA_KPA"
+    assert len(FakeTiles.calls) == 2
+
+
+def test_server_error_does_not_block_other_tiles(gfw):
+    FakeTiles.fail_first = 10  # semua percobaan untuk tile pertama gagal
+    lng, lat = _points_in_tile(inside=True)
+    assert not kawasan.lookup(_sq(lng, lat), "gfw").checked
+    FakeTiles.fail_first = 0
+    w, n = mvt.tile_to_lnglat(12, *SYN_TILE, 4096, 0, 0)
+    assert kawasan.lookup(_sq(w + 0.002, n - 0.004), "gfw").checked  # tidak menunggu jeda pemutus
 
 
 def test_gfw_down_without_cache_is_not_checked(gfw):

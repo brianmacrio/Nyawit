@@ -36,7 +36,8 @@ URL = KAWASAN_GFW_URL
 Z = 12
 LAYER = "idn_forest_area"
 CACHE_DAYS = 365  # data statis (versi 2017)
-BREAKER_S = 300
+BREAKER_S = 120  # hanya untuk gangguan jaringan; galat server per tile tidak menghentikan tile lain
+RETRY_WAIT_S = (1.0, 2.5)  # tile besar kadang dijawab HTTP 500 saat pertama kali dibuat server GFW
 SOURCE_LABEL = "Peta Kawasan Hutan KLHK 2017 (dataset Global Forest Watch)"
 UA = "PasporKebun/1.1 (cek status kawasan hutan kebun petani; hackathon)"
 KEEP = ("gfw_fid", "fungsikawa", "desc_in", "kelas", "legend_in", "namobj")
@@ -46,7 +47,9 @@ CODE = {"1001": "HL", "1002": "HL", "1003": "HP", "1004": "HPT", "1005": "HPK", 
 
 
 class GfwError(RuntimeError):
-    pass
+    def __init__(self, msg: str, reachable: bool = False):
+        super().__init__(msg)
+        self.reachable = reachable  # True = server menjawab (galat per tile), bukan putus jaringan
 
 
 _lock = threading.Lock()
@@ -96,18 +99,28 @@ def fungsi_of(attrs: dict) -> str:
 
 def _download(x: int, y: int) -> bytes:
     url = URL.format(z=Z, x=x, y=y)
-    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/x-protobuf"})
+    # Accept-Encoding seperti browser: tile terkompresi lebih kecil dan memakai salinan CDN yang sama
+    req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/x-protobuf,*/*",
+                                               "Accept-Encoding": "gzip"})
     from .kawasan import _ssl_context
 
-    try:
-        with urllib.request.urlopen(req, timeout=KAWASAN_TIMEOUT, context=_ssl_context()) as r:
-            return r.read()
-    except urllib.error.HTTPError as e:
-        # 404 juga dianggap gagal: bila alamat dataset berubah, semua tile 404 dan kebun
-        # di dalam kawasan tidak boleh terbaca "aman".
-        raise GfwError(f"HTTP {e.code} dari Global Forest Watch") from e
-    except Exception as e:  # noqa: BLE001
-        raise GfwError(f"{e.__class__.__name__}: {e}") from e
+    last: GfwError | None = None
+    for wait in (0.0, *RETRY_WAIT_S):
+        if wait:
+            time.sleep(wait)
+        try:
+            with urllib.request.urlopen(req, timeout=KAWASAN_TIMEOUT, context=_ssl_context()) as r:
+                return r.read()
+        except urllib.error.HTTPError as e:
+            # 404 juga dianggap gagal: bila alamat dataset berubah, semua tile 404 dan kebun
+            # di dalam kawasan tidak boleh terbaca "aman".
+            last = GfwError(f"HTTP {e.code} dari Global Forest Watch (tile {Z}/{x}/{y})", reachable=True)
+            if e.code < 500:
+                raise last from e
+        except Exception as e:  # noqa: BLE001
+            raise GfwError(f"{e.__class__.__name__}: {e}") from e
+    assert last is not None
+    raise last
 
 
 def fetch_tile(x: int, y: int) -> dict:
@@ -164,7 +177,9 @@ def get_tile(x: int, y: int, allow_online: bool = True) -> tuple[dict | None, st
             return data, "online"
         except GfwError as e:
             with _lock:
-                _state.update(offline_until=time.time() + BREAKER_S, last_error=str(e)[:300])
+                _state["last_error"] = str(e)[:300]
+                if not e.reachable:
+                    _state["offline_until"] = time.time() + BREAKER_S
     if cached is not None:
         return cached, "cache_lama"
     return None, "tidak_ada"
