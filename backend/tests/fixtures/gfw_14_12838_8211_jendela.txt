@@ -1,0 +1,5 @@
+# Potongan tile zoom 14 (x=12838, y=8211) di sekitar kebun Joko dan Darmawan, diambil 13 Nov 2026.
+# Piksel tile kehilangan tutupan (512 px) kolom 278-362, baris 331-420. Satu huruf = chr(65 + tahun*2 + hutan),
+# tahun = kanal biru tile Hansen "encoded" (0 = tidak ada kehilangan), hutan = 1 bila piksel JRC GFC2020 buram.
+# Baris: "n*isi" = isi berulang n baris; isi = huruf diikuti jumlah ulang. Checksum JS (h*31+c) = 3134360031.
+2*B3t5B18t17B11Ac6A24;5*B3t46B5A7c11A13;2*B3t49s3c29];8*A2Bt49s3c29];2*B3t49s3c29];6*B3t49s3c12W11c6];6*B3t49s3c12W11c7;2*B8t44s9c6W11c7;4*B8t48s5c6W11c7;4*A8B6s6A12t24s5W17c6];A8B6s6A12s4t20s5W17c6];A8B6A6Y12s4t19BA5c17a6];2*A8B6A6Y12s6t17BA5c17a6];3*A20Y12s8t15BA5c17a6];3*A37s3t15BA16c6a7;3*A37s3t15B15A2c6a7;5*a14A26B30A8a7;a14A28B28A8a7;a14A28B28A8a6A;2*a14A26B32A6a6A;2*a14A30B30A4a6A;a14A30B34a6A;5*A3a17A24B34A6a;A3a17A18B42A4a;a26A12B42A4a;4*a26A10B46A2a;4*a26A10B46A3;2*a26A14B42A3;2*c8a6k18A8B42A3;2*c8a6k18A8B38A7;2*c8a6k18A8B34A11;c3k29A10B28A15

@@ -156,3 +156,47 @@ def test_indicator_test_script_logic(monkeypatch):
     monkeypatch.setattr(kawasan, "lookup", lambda g, p: K(100.0, "klhk_gfw" if p == "gfw" else "kemenhut", "Hutan Produksi"))
     r = uji.evaluate_case("kawasan", {}, {1, 2, 3}, "tinggi", "uji")
     assert r["passed"] and r["indicators"]["2"]["pct"] == 100.0
+
+
+def _real_window_tiles():
+    """Tile nyata (potongan) di sekitar kebun Joko & Darmawan -> tile RGBA 512 (kehilangan) dan 256 (JRC)."""
+    import re
+    from pathlib import Path
+
+    line = [x for x in (Path(__file__).parent / "fixtures" / "gfw_14_12838_8211_jendela.txt").read_text().splitlines()
+            if not x.startswith("#")][0]
+    rows: list[str] = []
+    for part in line.split(";"):
+        m = re.fullmatch(r"(?:(\d+)\*)?(.*)", part)
+        rep, body = int(m.group(1) or 1), m.group(2)
+        row = "".join(ch * int(n or 1) for ch, n in re.findall(r"(\D)(\d*)", body))
+        rows += [row] * rep
+    i0, j0 = 278, 331
+    loss = np.zeros((512, 512, 4), np.uint8)
+    jrc = np.zeros((256, 256, 4), np.uint8)
+    for dj, row in enumerate(rows):
+        assert len(row) == 85
+        for di, ch in enumerate(row):
+            code = ord(ch) - 65
+            year, forest = code // 2, code % 2
+            if year:
+                loss[j0 + dj, i0 + di] = (255, 0, year, 255)
+            if forest:
+                jrc[(j0 + dj) // 2, (i0 + di) // 2] = (114, 102, 249, 255)
+    assert len(rows) == 90
+    return {"loss": loss, "jrc": jrc}
+
+
+def test_real_tiles_reproduce_bundled_values():
+    """Hitungan Python atas potongan tile GFW asli = hitungan di browser yang disimpan di tabel bawaan."""
+    tiles = _real_window_tiles()
+    joko = {"type": "Polygon", "coordinates": [[[102.098848, -0.433101], [102.097237, -0.433125], [102.09721, -0.431942],
+                                                [102.098776, -0.431877], [102.098848, -0.433101]]]}
+    darmawan = {"type": "Polygon", "coordinates": [[[102.100182, -0.435194], [102.098793, -0.43523], [102.098784, -0.434],
+                                                    [102.100195, -0.433969], [102.100182, -0.435194]]]}
+    j = pg.compute(joko, lambda k, x, y: tiles[k])
+    assert (j["pixels"], j["tree_cover_2020"], j["loss_after_by_year"]) == (1026, 100.0, {"2025": 100.0})
+    d = pg.compute(darmawan, lambda k, x, y: tiles[k])
+    assert d["pixels"] == 941 and d["tree_cover_2020"] == round(100 * 869 / 941, 1) and d["disturbance_after_2020"] == 0
+    assert pg.bundled(joko)["tree_cover_2020"] == j["tree_cover_2020"]
+    assert pg.bundled(darmawan)["disturbance_before_2021"] == d["disturbance_before_2021"]
