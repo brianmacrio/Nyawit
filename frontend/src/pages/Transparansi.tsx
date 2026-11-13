@@ -1,7 +1,106 @@
 import { useEffect, useState } from "react";
-import { api } from "../lib/api";
-import type { Meta } from "../lib/types";
-import { Notice } from "../components/ui";
+import { api, ApiError } from "../lib/api";
+import { riskLabel } from "../lib/format";
+import type { IndicatorTest, Meta } from "../lib/types";
+import { Notice, Spinner } from "../components/ui";
+
+const INDICATORS: [string, string][] = [
+  ["1", "Kehilangan tutupan pohon 2021–2025 (GFW)"],
+  ["2", "Kawasan hutan KLHK 2017 (GFW)"],
+  ["3", "Kawasan hutan (peta Kemenhut)"],
+];
+
+function indicatorText(t: IndicatorTest, k: string): string {
+  const i = t.indicators;
+  if (k === "1" && i["1"]) {
+    const yrs = Object.entries(i["1"].by_year).map(([y, v]) => `${y}: ${Math.round(v)}%`).join(", ");
+    return `${Math.round(i["1"].loss_after_pct)}% hilang${yrs ? ` (${yrs})` : ""}; hutan JRC 2020 ${Math.round(i["1"].forest_2020_pct)}%`;
+  }
+  if (k === "2" && i["2"]) return `${Math.round(i["2"].pct)}% · ${i["2"].label}`;
+  if (k === "3" && i["3"]) return `${Math.round(i["3"].pct)}% · ${i["3"].label}`;
+  return "tidak terbaca";
+}
+
+/** Uji tiga indikator peta dengan kebun yang sengaja melanggarnya (data online saat tombol ditekan). */
+function IndicatorTestPanel() {
+  const [res, setRes] = useState<{ results: IndicatorTest[]; passed: number; total: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const go = () => {
+    setBusy(true);
+    setErr(null);
+    api
+      .indicatorTest()
+      .then(setRes)
+      .catch((e) => setErr(e instanceof ApiError ? e.message : "Uji gagal dijalankan"))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <section className="panel panel-pad" style={{ marginTop: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
+        <h2 style={{ fontSize: 18, marginBottom: 6 }}>Uji indikator peta</h2>
+        <button className="btn btn-quiet" onClick={go} disabled={busy}>
+          {busy ? <Spinner label="Membaca peta online" /> : "Jalankan uji sekarang"}
+        </button>
+      </div>
+      <p className="small muted" style={{ marginBottom: 10 }}>
+        Lima kebun uji dengan lokasi nyata, masing-masing sengaja melanggar (atau tidak melanggar) indikator tertentu. Uji membaca peta
+        online saat ini juga, lalu membandingkan indikator yang menyala dan keputusan akhir dengan harapan. Perhatikan kebun peremajaan:
+        indikator kehilangan tutupan menyala, tetapi keputusannya tetap aman karena lahannya bukan hutan pada 2020.
+      </p>
+      {err && <Notice kind="danger">{err}</Notice>}
+      {res && (
+        <>
+          <Notice kind={res.passed === res.total ? "ok" : "warn"}>
+            {res.passed} dari {res.total} kebun uji lulus.
+          </Notice>
+          <div style={{ overflowX: "auto", marginTop: 10 }}>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Kebun uji</th>
+                  {INDICATORS.map(([k, l]) => <th key={k}>{l}</th>)}
+                  <th>Keputusan</th>
+                  <th>Hasil</th>
+                </tr>
+              </thead>
+              <tbody>
+                {res.results.map((t) => (
+                  <tr key={t.name}>
+                    <td>
+                      <strong>{t.name}</strong>
+                      <div className="small faint">{t.why}</div>
+                    </td>
+                    {INDICATORS.map(([k]) => {
+                      const on = t.on.includes(Number(k));
+                      const want = t.expect_on.includes(Number(k));
+                      return (
+                        <td key={k} className="small">
+                          <strong style={{ color: on ? "var(--risiko)" : undefined }}>{on ? "Menyala" : "Tidak"}</strong>
+                          {on !== want && <span className="faint"> (harapan: {want ? "menyala" : "tidak"})</span>}
+                          <div className="faint">{indicatorText(t, k)}</div>
+                        </td>
+                      );
+                    })}
+                    <td className="small">
+                      <strong>{t.risk ? riskLabel(t.risk) : "-"}</strong>
+                      {t.risk !== t.expect_risk && <span className="faint"> (harapan: {riskLabel(t.expect_risk)})</span>}
+                      <div className="faint">{t.headline}</div>
+                    </td>
+                    <td className="small">
+                      <strong>{t.passed ? "Lulus" : "Gagal"}</strong>
+                      {t.errors.map((e) => <div key={e} className="faint">{e}</div>)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
 
 const MODELS = [
   {
@@ -32,6 +131,7 @@ const MODELS = [
       ["Fungsinya", "Menggabungkan beberapa sumber bukti menjadi status Aman, Perlu cek, atau Berisiko beserta alasannya."],
       ["Data", "Peta tutupan hutan 2020 JRC (akurasi 91%), kehilangan tutupan Hansen/GLAD, peringatan radar RADD (user's accuracy 97,6%), peta sawit Forest Data Partnership/Descals, peta Kawasan Hutan Kementerian Kehutanan, dan time series di atas."],
       ["Cek kawasan otomatis", "Saat kebun digambar, aplikasi menanyakan poligon kawasan hutan di lokasi itu ke layanan peta resmi Kemenhut, membaca fungsinya (konservasi, hutan lindung, hutan produksi, APL), lalu menghitung persentase luas kebun di tiap fungsi. Layanan Kemenhut terbaru (revisi Juni 2026) hanya mengizinkan tampilan peta, jadi aplikasi membaca gambarnya: setiap fungsi kawasan punya warna tetap di legenda resmi (kuning = hutan produksi tetap, ungu = konservasi, putih = APL, dan seterusnya), lalu setiap piksel di bawah kebun dicocokkan ke warna itu. Ini aturan pasti, bukan model AI, karena warnanya ditetapkan oleh pemilik peta. Bila server Kemenhut tidak terjangkau, aplikasi otomatis memakai Peta Kawasan Hutan KLHK 2017 yang disediakan Global Forest Watch, dan paspor menyebut sumber mana yang dipakai. Hasilnya disimpan di cache agar tetap jalan saat offline. Kebun yang lebih dari 5% masuk kawasan hutan langsung berstatus Berisiko. Tidak ada batas kawasan yang digambar tangan."],
+      ["Bukti deforestasi", "Lapisan 'Kehilangan tutupan pohon' di peta (Hansen/GLAD lewat Global Forest Watch) dibaca per piksel di dalam batas kebun, bersama peta hutan JRC 2020 yang dipakai Uni Eropa. Kehilangan tutupan pohon belum tentu deforestasi: peremajaan atau panen kebun juga tercatat. Karena itu kebun baru berstatus Berisiko bila tutupan hilang sesudah 2020 DAN lahannya masih hutan pada 2020 menurut JRC; bila bukan hutan, statusnya Aman (peremajaan)."],
       ["Algoritma", "Aturan 'convergence of evidence' dari Whisp (FAO), ditambah pembeda peremajaan dan deforestasi: lahan yang tahun 2020 sudah kebun sawit lalu dibuka lagi adalah peremajaan (mis. PSR), bukan deforestasi."],
       ["Transparansi", "Aturannya terbuka di kode (evidence.py). Setiap paspor menampilkan bukti, sumber, dan tingkat keyakinan."],
       ["Batasannya", "Peta global kurang tajam untuk kebun di bawah 1 ha. Peta kawasan hutan berskala kecil dan bisa tertinggal dari SK pelepasan terbaru, jadi status 'masuk kawasan' adalah sinyal untuk diverifikasi (sertifikat, SK pelepasan), bukan vonis."],
@@ -65,7 +165,13 @@ export default function Transparansi() {
 
       {meta && (
         <Notice kind={meta.satellite_mode === "live" ? "ok" : "info"}>
-          Mode data satelit: <strong>{meta.satellite_mode === "live" ? "live (Sentinel-2 dan Hansen asli)" : "demo (simulasi berlabel)"}</strong>.
+          Mode data satelit:{" "}
+          <strong>
+            {meta.satellite_mode === "live"
+              ? "live (Sentinel-2 dan Hansen asli)"
+              : "demo: hutan 2020 (JRC) dan kehilangan tutupan (Hansen) dari peta nyata GFW, deret NDVI simulasi berlabel"}
+          </strong>
+          .
           AI batas kebun: <strong>{meta.sam.available ? "Segment Anything" : "watershed bawaan"}</strong>
           {meta.sam.available ? "" : ` (${meta.sam.reason})`}. Cek kawasan hutan:{" "}
           <strong>
@@ -99,6 +205,8 @@ export default function Transparansi() {
           </article>
         ))}
       </section>
+
+      <IndicatorTestPanel />
 
       <div className="grid-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
         <section className="panel panel-pad">

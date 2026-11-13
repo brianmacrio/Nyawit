@@ -474,7 +474,9 @@ export function PassportPanel({
       <div className="section" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <span className="small faint">
           {a
-            ? `Dianalisis ${dateLabel(a.created_at)}, ${a.compute_ms} ms di CPU. Data: ${a.data_source === "live" ? "satelit live" : "simulasi"}.`
+            ? `Dianalisis ${dateLabel(a.created_at)}, ${a.compute_ms} ms di CPU. Data: ${
+                a.data_source === "live" ? "satelit live" : a.data_source === "peta_nyata" ? "peta hutan & kehilangan tutupan nyata (GFW), NDVI simulasi" : "simulasi"
+              }.`
             : "Belum dianalisis."}
         </span>
         {can("koperasi", "verifikator") && (
@@ -489,6 +491,14 @@ export function PassportPanel({
           <p className="small faint">
             Mode demo: deret NDVI dan lapisan bukti di kebun ini adalah simulasi berlabel. Aktifkan mode live untuk data Sentinel-2 dan
             Hansen asli.
+          </p>
+        </div>
+      )}
+      {a?.data_source === "peta_nyata" && (
+        <div style={{ padding: "0 20px 18px" }}>
+          <p className="small faint">
+            Mode demo: hutan 2020 (JRC) dan kehilangan tutupan pohon (Hansen) dibaca dari peta nyata Global Forest Watch, sama
+            dengan lapisan di Peta Kebun. Hanya deret NDVI yang masih simulasi; mode live membaca Sentinel-2 asli.
           </p>
         </div>
       )}

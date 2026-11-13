@@ -10,6 +10,7 @@ import type {
   GeoPolygon,
   Inspection,
   KawasanMap,
+  IndicatorTest,
   Meta,
   OverlapCheck,
   PassportLookup,
@@ -73,6 +74,7 @@ export const api = {
   demoAccounts: () => req<DemoAccount[]>("/api/auth/demo-accounts"),
 
   meta: () => req<Meta>("/api/meta"),
+  indicatorTest: () => req<{ results: IndicatorTest[]; passed: number; total: number }>("/api/uji-indikator"),
   plots: () => req<PlotSummary[]>("/api/plots"),
   plot: (id: number) => req<PlotDetail>(`/api/plots/${id}`),
   protectedAreas: () => req<ProtectedArea[]>("/api/plots/protected-areas"),

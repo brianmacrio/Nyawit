@@ -24,7 +24,7 @@ import type {
   SideType,
   StdbStatus,
 } from "../lib/types";
-import { BaseLayers } from "../components/MapBase";
+import { BaseLayers, JRC_OVERLAY, LOSS_OVERLAY, OVERLAY_EVENT } from "../components/MapBase";
 import { useKawasanLayerStatus } from "../components/KawasanLayer";
 import { useGfwStatus } from "../components/GfwKawasanLayer";
 import { PassportPanel } from "../components/PassportPanel";
@@ -40,7 +40,7 @@ const toGeo = (latlngs: L.LatLng[]): GeoPolygon => {
 
 type Mode = "idle" | "start" | "locating" | "pick" | "loading" | "edit" | "draw";
 const SCENARIOS: [string, string][] = [
-  ["", "Otomatis (sesuai lokasi)"],
+  ["", "Ikuti peta nyata di lokasi ini (disarankan)"],
   ["sawit_tua_stabil", "Sawit stabil sejak sebelum 2018"],
   ["dibuka_2019", "Dibuka 2019, sebelum batas EUDR"],
   ["peremajaan_2023", "Peremajaan sawit 2023 (PSR)"],
@@ -156,6 +156,15 @@ export default function PetaKebun() {
   const [plots, setPlots] = useState<PlotSummary[]>([]);
   const [areas, setAreas] = useState<ProtectedArea[]>([]);
   const [meta, setMeta] = useState<Meta | null>(null);
+  const [overlays, setOverlays] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    const on = (e: Event) => {
+      const { name, on } = (e as CustomEvent<{ name: string; on: boolean }>).detail;
+      setOverlays((o) => ({ ...o, [name]: on }));
+    };
+    window.addEventListener(OVERLAY_EVENT, on);
+    return () => window.removeEventListener(OVERLAY_EVENT, on);
+  }, []);
   const [selected, setSelected] = useState<PlotDetail | null>(null);
   const [justAnalyzed, setJustAnalyzed] = useState(false);
   const [flyTarget, setFlyTarget] = useState<GeoPolygon | null>(null);
@@ -494,6 +503,17 @@ export default function PetaKebun() {
           </div>
         ))}
         {kawasanCodes.size > 0 && <div className="legend-row faint small">Batas kawasan: Peta Kawasan Hutan KLHK 2017 (GFW)</div>}
+        {overlays[JRC_OVERLAY] && (
+          <div className="legend-row"><i className="swatch" style={{ borderColor: "#7266f9", background: "#7266f999" }} /> Hutan 2020 (JRC)</div>
+        )}
+        {overlays[LOSS_OVERLAY] && (
+          <>
+            <div className="legend-row"><i className="swatch" style={{ borderColor: "#e3528c", background: "#e3528ccc" }} /> Tutupan pohon hilang 2021–2025</div>
+            <div className="legend-row faint small" style={{ maxWidth: 230 }}>
+              Belum tentu deforestasi: peremajaan sawit juga tercatat. Berisiko bila lahannya masih hutan pada 2020 (JRC).
+            </div>
+          </>
+        )}
         {gfwStatus.state === "loading" && <div className="legend-row faint">Mendeteksi kawasan hutan di area ini…</div>}
         {gfwStatus.state === "zoom" && <div className="legend-row faint">Perbesar peta untuk melihat kawasan hutan.</div>}
         {gfwStatus.state === "error" && (
@@ -884,10 +904,14 @@ function NewPlotForm({
       <div className="section form-grid">
         {demo && (
           <label className="field">
-            <span>Skenario data satelit (mode demo)</span>
+            <span>Deret NDVI simulasi (mode demo)</span>
             <select className="select" value={form.demo_scenario} onChange={(e) => set("demo_scenario", e.target.value)}>
               {SCENARIOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
+            <span className="small faint">
+              Status Aman/Berisiko diputuskan dari peta nyata (hutan JRC 2020, kehilangan tutupan GFW, peta kawasan). Pilihan ini hanya
+              mengubah grafik NDVI simulasi; bila bertentangan dengan peta, paspor memberi peringatan.
+            </span>
           </label>
         )}
         <label className="check">

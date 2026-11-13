@@ -71,7 +71,7 @@ export interface Analysis {
     protected: KawasanInfo;
   };
   timeseries: TimeSeries;
-  data_source: "simulasi" | "live";
+  data_source: "simulasi" | "live" | "peta_nyata";
   compute_ms: number;
   model_version: string;
 }
@@ -436,6 +436,25 @@ export interface Meta {
     mode?: "gambar" | "query" | null;
     layer_names?: string[];
     legend?: { label: string; rgb: [number, number, number]; fungsi: string; kawasan: boolean | null }[];
+  };
+  peta_gfw?: { enabled: boolean; bundled_plots: number; cached_tiles: number; last_ok: string | null; last_error: string | null };
+}
+
+export interface IndicatorTest {
+  name: string;
+  why: string;
+  expect_on: number[];
+  expect_risk: Risk;
+  on: number[];
+  risk?: Risk;
+  headline?: string;
+  passed: boolean;
+  seconds: number;
+  errors: string[];
+  indicators: {
+    "1"?: { on: boolean; loss_after_pct: number; by_year: Record<string, number>; forest_2020_pct: number };
+    "2"?: { on: boolean; pct: number; label: string };
+    "3"?: { on: boolean; pct: number; label: string };
   };
 }
 
