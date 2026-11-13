@@ -134,7 +134,7 @@ backend/app/
   services/  delineation, tiles, timeseries (COLD-lite), evidence, kawasan (+ kawasan_raster), kawasan_gfw + mvt, satellite/{demo,live},
              yield_model, supply_guard, readiness (Siap EUDR), verification, shipment, audit, geo
   scripts/   validate, check_live, check_kawasan
-backend/tests/   97 tes pytest
+backend/tests/   98 tes pytest
 frontend/src/
   pages/     Beranda, Masuk, PetaKebun, Pengepul, Pabrik, Verifikasi, Transparansi, CekPaspor, KartuPaspor
   components/ PassportPanel, NdviChart, MapBase, KawasanLayer, GfwKawasanLayer, QrScanner, RoleGate, ui
@@ -150,7 +150,7 @@ frontend/src/
 | Database | SQLite (WAL), migrasi aditif otomatis |
 | AI & geospasial | NumPy, OpenCV (headless), scikit-learn (Isolation Forest), Shapely, Pillow; opsional Segment Anything (PyTorch) |
 | API / layanan pihak ketiga | Esri World Imagery (citra), Global Forest Watch tiles (kehilangan tutupan pohon; Peta Kawasan Hutan KLHK 2017 sebagai tile vektor), Geoportal Kemenhut (Kawasan Hutan, ArcGIS REST), Microsoft Planetary Computer (Sentinel-2, mode live), Google Cloud Storage (Hansen GFC, mode live) |
-| Pengujian & mutu | pytest (97 tes, termasuk server peta tiruan), Playwright (uji alur di browser saat pengembangan) |
+| Pengujian & mutu | pytest (98 tes, termasuk server peta tiruan), Playwright (uji alur di browser saat pengembangan) |
 | Deploy | Docker (multi-stage), Render Blueprint (`render.yaml`) |
 
 Tidak ada layanan AI pihak ketiga (API LLM dll.) yang dipanggil aplikasi; semua model berjalan di CPU server sendiri.
@@ -263,7 +263,8 @@ kode, tes, serta dokumentasi (diperbolehkan guidebook). Seluruh kode ditinjau, d
 - Batas laju: login 10/menit, AI 30/menit, unggahan 20/menit, cek paspor publik 60/menit.
 - Validasi input (Pydantic): batas panjang teks, jumlah titik poligon, rentang koordinat, jenis & ukuran foto.
 - Tanpa NIK/KTP. QR hanya berisi kode. Tampilan publik menyamarkan nama; paket ekspor dan GeoJSON tanpa nama petani.
-  Pabrik hanya melihat status bukti lahan, bukan dokumennya. Foto inspeksi di-encode ulang (EXIF dibuang).
+  Pabrik dan pengepul hanya melihat jenis bukti lahan: nomor surat, catatan sengketa, dan nama lengkap saksi disembunyikan
+  dari kedua peran itu di API. Foto inspeksi di-encode ulang (EXIF dibuang).
 - Riwayat perubahan berantai hash SHA-256; perubahan diam-diam di database terdeteksi (`/api/audit/verify`).
 - Rahasia di `.env` (tidak di-commit); contoh variabel di `.env.example`.
 - Penilaian dampak pelindungan data pribadi (UU PDP Pasal 34, PP 33/2026): [`docs/DPIA.md`](docs/DPIA.md). Kebijakan privasi
@@ -278,7 +279,7 @@ kode, tes, serta dokumentasi (diperbolehkan guidebook). Seluruh kode ditinjau, d
 |---|---|
 | Kesesuaian Masalah & Solusi (25%) | Empat peran nyata; syarat Siap EUDR mengikuti EUDR, ISPO (Permentan 33/2025), dan RSPO; sertifikat tanah tidak diwajibkan; pembeda peremajaan agar petani PSR tidak dirugikan; keberatan petani |
 | Inovasi & Implementasi Teknologi (25%) | 4 komponen AI yang masing-masing mengubah keputusan; riwayat satelit 5+ tahun; cek kawasan hutan otomatis; penjaga pengepul (celah yang belum ditutup solusi lain); sampel verifikasi berbasis risiko |
-| Rekayasa Perangkat Lunak (25%) | Arsitektur berlapis, tipe ketat (Pydantic + TypeScript strict), 97 tes otomatis, migrasi aditif, Docker + Render, dokumentasi API otomatis, setup satu perintah |
+| Rekayasa Perangkat Lunak (25%) | Arsitektur berlapis, tipe ketat (Pydantic + TypeScript strict), 98 tes otomatis, migrasi aditif, Docker + Render, dokumentasi API otomatis, setup satu perintah |
 | Desain & Pengalaman Pengguna (15%) | GPS "saya di kebun" alih-alih membaca citra; pertanyaan per sisi batas; satu alur per peran; checklist Siap EUDR yang menyebut apa yang kurang; kartu QR cetak untuk petani tanpa ponsel |
 | Etika & Keamanan Digital (10%) | Lihat bagian Keamanan dan privasi; DPIA dan kebijakan privasi di `docs/`; vonis Berisiko butuh dua peta hutan sepakat + verifikator manusia; transparansi AI di halaman Cara kerja AI; atribusi lengkap di bawah |
 
@@ -286,7 +287,7 @@ kode, tes, serta dokumentasi (diperbolehkan guidebook). Seluruh kode ditinjau, d
 
 ```bat
 cd backend
-.venv\Scripts\python -m pytest -q              :: 97 tes
+.venv\Scripts\python -m pytest -q              :: 98 tes
 .venv\Scripts\python -m app.scripts.validate   :: menulis docs/VALIDASI.md
 ```
 

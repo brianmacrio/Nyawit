@@ -59,6 +59,20 @@ def test_unknown_api_path_is_json_404_not_spa(c):
     assert r.status_code == 404 and "html" not in r.headers.get("content-type", "")
 
 
+def test_land_document_numbers_hidden_from_mill_and_collector(c):
+    """Pabrik dan pengepul melihat jenis bukti lahan, bukan nomor surat atau nama lengkap saksi."""
+    as_(c, "koperasi")
+    full = c.get("/api/plots/1").json()
+    assert full["land"]["ref"] and full["witnesses"] and " " in full["witnesses"][0]["name"]
+    for role in ("pabrik", "pengepul"):
+        as_(c, role)
+        d = c.get("/api/plots/1").json()
+        assert d["land"]["proof"] == full["land"]["proof"] and d["land"]["ref"] is None and d["land"]["stdb_number"] is None
+        assert all(w["name"].endswith(".") or " " not in w["name"] for w in d["witnesses"])
+    as_(c, "verifikator")
+    assert c.get("/api/plots/1").json()["land"]["ref"] == full["land"]["ref"]
+
+
 def test_role_enforced(c):
     as_(c, "pengepul")
     g = sq(102.095, -0.345)  # APL menurut salinan peta KLHK 2017 di area demo

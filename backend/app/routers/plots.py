@@ -18,6 +18,18 @@ from ..services import plots as svc
 
 router = APIRouter(prefix="/api/plots", tags=["Kebun"])
 EDIT = ("koperasi",)
+FULL_DETAIL = ("koperasi", "verifikator", "admin")
+
+
+def _for_role(d: dict, user: User) -> dict:
+    """Minimasi data: pengepul dan pabrik cukup tahu JENIS bukti lahan dan statusnya, bukan nomor surat,
+    catatan sengketa, atau nama lengkap saksi (lihat docs/DPIA.md)."""
+    if user.role in FULL_DETAIL:
+        return d
+    d["land"] = {**d["land"], "ref": None, "stdb_number": None, "dispute_note": None}
+    d["witness"] = svc.mask_name(d["witness"]) if d.get("witness") else None
+    d["witnesses"] = [{**w, "name": svc.mask_name(w["name"])} for w in d.get("witnesses") or []]
+    return d
 
 
 def _get(db: Session, plot_id: int) -> Plot:
@@ -118,9 +130,9 @@ def create_plot(body: PlotCreate, db: Session = Depends(get_db), user: User = De
 
 
 @router.get("/{plot_id}")
-def get_plot(plot_id: int, db: Session = Depends(get_db), _: User = Depends(require())):
+def get_plot(plot_id: int, db: Session = Depends(get_db), user: User = Depends(require())):
     p = _get(db, plot_id)
-    d = svc.plot_detail(p, db)
+    d = _for_role(svc.plot_detail(p, db), user)
     d["overlaps"] = svc.overlaps(db, p.geometry, p.id)
     return d
 
