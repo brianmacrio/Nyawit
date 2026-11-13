@@ -228,3 +228,43 @@ def test_demo_plots_use_real_forest_map(c):
     seeded = [p for p in c.get("/api/plots").json() if p["code"].startswith("PK-000")]
     in_kawasan = [p["code"] for p in seeded if "masuk" in (p["risk_headline"] or "") and "Hutan" in p["risk_headline"]]
     assert in_kawasan == ["PK-00005-Z"]
+
+
+def test_demo_plots_violate_each_map_indicator(c):
+    """Kebun contoh yang sengaja melanggar indikator peta, dengan lapisan dari peta NYATA (tabel bawaan).
+
+    - Joko: hutan JRC 2020 + kehilangan tutupan 2025 (indikator 1) -> berisiko deforestasi.
+    - Sutrisno: kehilangan tutupan 2023 (indikator 1) tetapi bukan hutan 2020 -> aman, peremajaan.
+    - Rina: di Hutan Produksi menurut peta KLHK 2017 (indikator 2) -> berisiko legalitas.
+    - Darmawan: hutan JRC tanpa kehilangan tutupan -> perlu cek lapangan.
+    """
+    as_(c, "koperasi")
+    by_name = {p["farmer"]["name"]: p for p in c.get("/api/plots").json()}
+
+    def detail(name):
+        d = c.get(f"/api/plots/{by_name[name]['id']}").json()
+        a = d["analysis"]
+        return a, {i["key"]: i for i in a["evidence"]["items"]}
+
+    a, items = detail("Joko Susilo")
+    assert a["data_source"] == "peta_nyata" and a["risk_level"] == "tinggi" and a["evidence"]["rule"] == "aturan-4"
+    assert a["evidence"]["layers"]["tree_cover_2020"] > 90 and a["evidence"]["layers"]["loss_after_main_year"] == "2025"
+    assert items["disturbance_after_2020"]["verdict"] == "mendukung_risiko"
+    assert items["protected"]["verdict"] == "mendukung_aman"  # APL: hanya indikator deforestasi yang dilanggar
+
+    a, items = detail("Sutrisno Wibowo")
+    assert a["risk_level"] == "rendah" and a["evidence"]["rule"] == "aturan-1-peremajaan"
+    assert a["evidence"]["layers"]["disturbance_after_2020"] > 90 and a["evidence"]["layers"]["tree_cover_2020"] == 0
+    assert items["disturbance_after_2020"]["verdict"] == "netral"
+
+    a, items = detail("Rina Wati")
+    assert a["risk_level"] == "tinggi" and a["evidence"]["rule"] == "aturan-0-legalitas"
+    assert items["protected"]["verdict"] == "mendukung_risiko" and a["evidence"]["protected"]["fungsi"] == "HP"
+    assert a["evidence"]["layers"]["disturbance_after_2020"] == 0  # lapisan satelit bersih: murni soal legalitas
+
+    a, _ = detail("Darmawan Lubis")
+    assert a["risk_level"] == "perlu_cek" and a["evidence"]["rule"] == "aturan-5"
+
+    seeded = [p for p in by_name.values() if p["code"].startswith("PK-000")]
+    replant = [p for p in seeded if "peremajaan" in (p["risk_headline"] or "")]
+    assert len(replant) >= 5 and all(p["risk_level"] == "rendah" for p in replant)

@@ -1,0 +1,741 @@
+{
+ "_meta": {
+  "computed_at": "13-11-2026",
+  "method": "Pusat piksel tile zoom 14 di dalam batas kebun (sama dengan services/satellite/peta_gfw.compute)",
+  "sources": [
+   "https://tiles.globalforestwatch.org/umd_tree_cover_loss/latest/dynamic/{z}/{x}/{y}.png?start_year=2001&end_year=2025&tree_cover_density_threshold=30&render_type=encoded",
+   "https://tiles.globalforestwatch.org/jrc_global_forest_cover/v2020.3/default/{z}/{x}/{y}.png"
+  ],
+  "note": "Lapisan peta nyata untuk kebun contoh demo, disimpan agar hasil demo sama tanpa internet. Kunci = sha256 cincin poligon (6 desimal)."
+ },
+ "plots": {
+  "38c9222e5bcede57": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 878,
+   "code_demo": "PK-00001-F"
+  },
+  "0c587a0710df1d2a": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 675,
+   "code_demo": "PK-00002-K"
+  },
+  "1a654618827a576f": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 100.0,
+   "loss_after_by_year": {
+    "2023": 100.0
+   },
+   "loss_after_main_year": "2023",
+   "loss_before_main_year": null,
+   "pixels": 1329,
+   "code_demo": "PK-00003-P"
+  },
+  "f3714f1cf251a247": {
+   "tree_cover_2020": 100.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 100.0,
+   "loss_after_by_year": {
+    "2025": 100.0
+   },
+   "loss_after_main_year": "2025",
+   "loss_before_main_year": null,
+   "pixels": 1026,
+   "code_demo": "PK-00004-U"
+  },
+  "15b4b6f1c283bdc8": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 732,
+   "code_demo": "PK-00005-Z"
+  },
+  "db57c7a9517a690a": {
+   "tree_cover_2020": 92.3,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.5,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2017",
+   "pixels": 941,
+   "code_demo": "PK-00006-E"
+  },
+  "9b113f370482978e": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 60.9,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2005",
+   "pixels": 598,
+   "code_demo": "PK-00007-J"
+  },
+  "9fdc76ca9b0af948": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 22.9,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2004",
+   "pixels": 992,
+   "code_demo": "PK-00008-O"
+  },
+  "789160f2756d06e8": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 45.6,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2004",
+   "pixels": 432,
+   "code_demo": "PK-00009-T"
+  },
+  "41985e984bb9b9da": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 23.7,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2004",
+   "pixels": 1600,
+   "code_demo": "PK-00010-E"
+  },
+  "6fee2e69f7d906d7": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 24.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2005",
+   "pixels": 858,
+   "code_demo": "PK-00011-J"
+  },
+  "19fbb89ed837aef5": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 17.1,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 993,
+   "code_demo": "PK-00012-O"
+  },
+  "be1e25d525079142": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 56.2,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2003",
+   "pixels": 585,
+   "code_demo": "PK-00013-T"
+  },
+  "80e8eaa1c479315f": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 20.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 530,
+   "code_demo": "PK-00014-Y"
+  },
+  "104828610bbebb81": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 881,
+   "code_demo": "PK-00015-D"
+  },
+  "ef21caf48927d1f2": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 42.8,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 1070,
+   "code_demo": "PK-00016-I"
+  },
+  "5fe3a0d76fe82b07": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 5.7,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2003",
+   "pixels": 1098,
+   "code_demo": "PK-00017-N"
+  },
+  "d53ecf1a31a82414": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.5,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 1249,
+   "code_demo": "PK-00018-S"
+  },
+  "11ff1b161ccd9da5": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 1.4,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2004",
+   "pixels": 633,
+   "code_demo": "PK-00019-X"
+  },
+  "d76ecb94a932f28a": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 1080,
+   "code_demo": "PK-00020-I"
+  },
+  "4e49607ab6cdab24": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 72.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 843,
+   "code_demo": "PK-00021-N"
+  },
+  "332e46ebcbae8be0": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 12.8,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 1175,
+   "code_demo": "PK-00022-S"
+  },
+  "114406f600fd1886": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 2.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 615,
+   "code_demo": "PK-00023-X"
+  },
+  "9109090712ee7d36": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 10.1,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 475,
+   "code_demo": "PK-00024-C"
+  },
+  "13cb0cabe349199c": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 1.8,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 1140,
+   "code_demo": "PK-00025-H"
+  },
+  "09849600b56ad64e": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 965,
+   "code_demo": "PK-00026-M"
+  },
+  "f522c6895e32688a": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 547,
+   "code_demo": "PK-00027-R"
+  },
+  "a78f4c5150d97771": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 35.8,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 953,
+   "code_demo": "PK-00028-W"
+  },
+  "6aaf316d55db3033": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 734,
+   "code_demo": "PK-00029-B"
+  },
+  "ec3c3919c6aea106": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 682,
+   "code_demo": "PK-00030-M"
+  },
+  "7c3742c569e410d9": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 7.3,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2004",
+   "pixels": 1003,
+   "code_demo": "PK-00031-R"
+  },
+  "9da67b9ca5d4f0f3": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 22.8,
+   "disturbance_after_2020": 49.8,
+   "loss_after_by_year": {
+    "2024": 49.8
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": "2019",
+   "pixels": 1226,
+   "code_demo": "PK-00032-W"
+  },
+  "44aa73117712d94c": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 38.1,
+   "disturbance_after_2020": 8.1,
+   "loss_after_by_year": {
+    "2024": 8.1
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": "2019",
+   "pixels": 1045,
+   "code_demo": "PK-00033-B"
+  },
+  "7c645632f268f3f7": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 5.2,
+   "disturbance_after_2020": 9.4,
+   "loss_after_by_year": {
+    "2024": 9.4
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": "2001",
+   "pixels": 688,
+   "code_demo": "PK-00034-G"
+  },
+  "5b69388052f1eb18": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 3.3,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2001",
+   "pixels": 979,
+   "code_demo": "PK-00035-L"
+  },
+  "0af8bcd1ea463971": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 917,
+   "code_demo": "PK-00036-Q"
+  },
+  "5b2ed7ce6a7a4190": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 74.3,
+   "loss_after_by_year": {
+    "2024": 69.1,
+    "2025": 5.2
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": null,
+   "pixels": 689,
+   "code_demo": "PK-00037-V"
+  },
+  "2439fc9d997cd982": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 1.2,
+   "disturbance_after_2020": 86.7,
+   "loss_after_by_year": {
+    "2024": 86.7
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": "2019",
+   "pixels": 668,
+   "code_demo": "PK-00038-A"
+  },
+  "6c7a05f03bff9fd7": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 24.8,
+   "loss_after_by_year": {
+    "2024": 24.8
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": null,
+   "pixels": 656,
+   "code_demo": "PK-00039-F"
+  },
+  "8756a358d4c60c37": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 14.6,
+   "disturbance_after_2020": 5.4,
+   "loss_after_by_year": {
+    "2025": 5.4
+   },
+   "loss_after_main_year": "2025",
+   "loss_before_main_year": "2011",
+   "pixels": 845,
+   "code_demo": "PK-00040-Q"
+  },
+  "fd27ff25e5f771f7": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 10.1,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2004",
+   "pixels": 695,
+   "code_demo": "PK-00041-V"
+  },
+  "583115464d0ba9fd": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 73.7,
+   "loss_after_by_year": {
+    "2024": 73.7
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": null,
+   "pixels": 876,
+   "code_demo": "PK-00042-A"
+  },
+  "300458696c8bb728": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 2.5,
+   "disturbance_after_2020": 81.8,
+   "loss_after_by_year": {
+    "2024": 81.8
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": "2011",
+   "pixels": 787,
+   "code_demo": "PK-00043-F"
+  },
+  "da3280da8e76687d": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 7.3,
+   "loss_after_by_year": {
+    "2024": 7.3
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": null,
+   "pixels": 694,
+   "code_demo": "PK-00044-K"
+  },
+  "026ef4c081162fae": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 4.0,
+   "loss_after_by_year": {
+    "2025": 4.0
+   },
+   "loss_after_main_year": "2025",
+   "loss_before_main_year": null,
+   "pixels": 721,
+   "code_demo": "PK-00045-P"
+  },
+  "48585a0e8f8e6c33": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 13.5,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2002",
+   "pixels": 1118,
+   "code_demo": "PK-00046-U"
+  },
+  "8f0190ecabd9fa1d": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 56.6,
+   "disturbance_after_2020": 2.7,
+   "loss_after_by_year": {
+    "2024": 2.7
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": "2003",
+   "pixels": 732,
+   "code_demo": "PK-00047-Z"
+  },
+  "a87684916f64dfe9": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 10.4,
+   "disturbance_after_2020": 3.4,
+   "loss_after_by_year": {
+    "2024": 3.4
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": "2002",
+   "pixels": 823,
+   "code_demo": "PK-00048-E"
+  },
+  "cf13f344f9965706": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.5,
+   "disturbance_after_2020": 0.3,
+   "loss_after_by_year": {
+    "2024": 0.3
+   },
+   "loss_after_main_year": "2024",
+   "loss_before_main_year": "2004",
+   "pixels": 1161,
+   "code_demo": "PK-00049-J"
+  },
+  "cdba3399c34ece22": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 8.0,
+   "loss_after_by_year": {
+    "2025": 8.0
+   },
+   "loss_after_main_year": "2025",
+   "loss_before_main_year": null,
+   "pixels": 904,
+   "code_demo": "PK-00050-U"
+  },
+  "7a32cb71b1f5f955": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 697,
+   "code_demo": "PK-00051-Z"
+  },
+  "f6e2590c4aff4e07": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 1203,
+   "code_demo": "PK-00052-E"
+  },
+  "01a80daea828c9ea": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 1293,
+   "code_demo": "PK-00053-J"
+  },
+  "e951ab71fa5f6dd3": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.8,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2004",
+   "pixels": 743,
+   "code_demo": "PK-00054-O"
+  },
+  "02ce1b2f0cb2b2e0": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 5.7,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2004",
+   "pixels": 1409,
+   "code_demo": "PK-00055-T"
+  },
+  "c40d8c9a25cdff89": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 666,
+   "code_demo": "PK-00056-Y"
+  },
+  "2080530a4089b509": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 0.0,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": null,
+   "pixels": 639,
+   "code_demo": "PK-00057-D"
+  },
+  "8e5452476515f8f7": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 4.7,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2004",
+   "pixels": 935,
+   "code_demo": "PK-00058-I"
+  },
+  "fa80a15b75a80dcd": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 8.8,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2005",
+   "pixels": 1095,
+   "code_demo": "PK-00059-N"
+  },
+  "8a13097f6d01c450": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 52.6,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2005",
+   "pixels": 587,
+   "code_demo": "PK-00060-Y"
+  },
+  "e9e0f504d2c4156f": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 17.8,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2005",
+   "pixels": 1055,
+   "code_demo": "PK-00061-D"
+  },
+  "f18917c2b8866ab7": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 32.3,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2005",
+   "pixels": 790,
+   "code_demo": "PK-00062-I"
+  },
+  "a0ec476dae73e08f": {
+   "tree_cover_2020": 0.0,
+   "commodity_2020": null,
+   "disturbance_before_2021": 28.9,
+   "disturbance_after_2020": 0.0,
+   "loss_after_by_year": {},
+   "loss_after_main_year": null,
+   "loss_before_main_year": "2004",
+   "pixels": 595,
+   "code_demo": "PK-00063-N"
+  }
+ }
+}

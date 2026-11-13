@@ -26,6 +26,8 @@ from .services import audit
 from .services import kawasan as kawasan_svc
 from .services import plots as plot_svc
 from .services import supply as supply_svc
+from .services.satellite import demo as demo_sim
+from .services.satellite import peta_gfw
 from .services.yield_model import SEASONAL, TYPICAL_SMALLHOLDER_FACTOR, potential_t_per_ha_year
 
 CENTER = (-0.3645, 102.0625)  # (lat, lng), di dalam APL "Kebun Swadaya" menurut data GFW
@@ -45,12 +47,12 @@ LAST = ["Santoso", "Aminah", "Wibowo", "Susilo", "Wati", "Lubis", "Harahap", "Pr
 HERO_LAND = {
     "Budi Santoso": ("sertifikat", "SHM No. 01234/Sungai Harapan", "ada", "Siti Aminah (tetangga timur)"),
     "Siti Aminah": ("surat_desa", "SKGR 141/SH/2019", "proses", "Budi Santoso (tetangga barat)"),
-    "Sutrisno Wibowo": ("sertifikat", "SHM No. 00877/Sungai Harapan", "ada", "Agus Pratama (tetangga selatan)"),
+    "Sutrisno Wibowo": ("sertifikat", "SHM No. 00877/Sungai Harapan", "ada", "Hendra Purba (tetangga selatan)"),
     "Joko Susilo": ("pernyataan", None, "belum", None),
     "Rina Wati": ("surat_desa", "SKT 22/2014", "belum", None),
-    "Darmawan Lubis": ("surat_desa", "SKGR 077/SH/2012", "proses", "Wahyuni Harahap (tetangga timur)"),
-    "Wahyuni Harahap": ("surat_desa", "SKGR 102/SH/2010", "belum", "Darmawan Lubis (tetangga barat)"),
-    "Agus Pratama": ("sertifikat", "SHM No. 00412/Sungai Harapan", "ada", "Sutrisno Wibowo (tetangga utara)"),
+    "Darmawan Lubis": ("surat_desa", "SKGR 077/SH/2012", "proses", "Joko Susilo (tetangga barat)"),
+    "Wahyuni Harahap": ("surat_desa", "SKGR 102/SH/2010", "belum", "Agus Pratama (tetangga timur)"),
+    "Agus Pratama": ("sertifikat", "SHM No. 00412/Sungai Harapan", "ada", "Wahyuni Harahap (tetangga barat)"),
     "Sri Rahayu": ("pernyataan", None, "proses", "Hasan Siregar (tetangga timur)"),
     "Hasan Siregar": ("sertifikat", "SHM No. 00203/Sungai Harapan", "ada", "Sri Rahayu (tetangga barat)"),
 }
@@ -70,14 +72,21 @@ DEMO_USERS = [
     ("admin", "Admin PasporKebun", "admin", "PasporKebun", None),
 ]
 
+# Kebun contoh yang sengaja melanggar indikator peta, dipilih dari data NYATA (dicek 13 Nov 2026):
+# - Joko: hutan menurut JRC 2020, dibuka 2025 menurut Hansen/GFW, APL di peta KLHK 2017 & Kemenhut 2026
+#   -> melanggar indikator "kehilangan tutupan" dan benar-benar deforestasi (berisiko).
+# - Sutrisno: kehilangan tutupan 2023 di lahan yang BUKAN hutan pada 2020 (blok peremajaan) -> indikator
+#   kehilangan tutupan menyala, tetapi bukan deforestasi (aman).
+# - Rina: di dalam Hutan Produksi menurut peta KLHK 2017 (GFW) dan peta Kemenhut Juni 2026 -> berisiko legalitas.
+# - Darmawan: hutan menurut JRC 2020, tanpa kehilangan tutupan -> bukti belum cukup (perlu cek lapangan).
 HERO = [
     # nama, desa, (dx_m, dy_m), (w, h), skenario, tahun tanam diklaim, saksi
     ("Budi Santoso", "Sungai Harapan", (-420, 160), (165, 128), "sawit_tua_stabil", 2008, "Ketua Poktan Sri Rejeki"),
     ("Siti Aminah", "Sungai Harapan", (-235, 165), (120, 132), "dibuka_2019", 2019, "Ketua Poktan Sri Rejeki"),
-    ("Sutrisno Wibowo", "Sungai Harapan", (-60, 150), (190, 168), "peremajaan_2023", 2023, "Ketua Poktan Sri Rejeki"),
-    ("Joko Susilo", "Sungai Harapan", (205, 40), (175, 138), "hutan_dibuka_2022", 2015, None),
+    ("Sutrisno Wibowo", "Sungai Harapan", (-3384, -757), (189, 167), "peremajaan_2023", 2023, "Ketua Poktan Sri Rejeki"),
+    ("Joko Susilo", "Sungai Harapan", (-4041, 7637), (178, 134), "hutan_dibuka_2025", 2015, None),
     ("Rina Wati", "Sungai Harapan", (830, 406), (150, 126), "kawasan_hutan", 2014, "Kepala Dusun"),  # di Hutan Produksi
-    ("Darmawan Lubis", "Sungai Harapan", (-420, -40), (190, 148), "data_kurang", 2012, "Ketua Poktan Sri Rejeki"),
+    ("Darmawan Lubis", "Sungai Harapan", (-4197, 7870), (156, 134), "data_kurang", 2012, "Ketua Poktan Sri Rejeki"),
     ("Wahyuni Harahap", "Sungai Harapan", (-240, -40), (118, 120), "sawit_tua_stabil", 2010, "Ketua Poktan Sri Rejeki"),
     ("Agus Pratama", "Sungai Harapan", (-90, -45), (160, 138), "sawit_tua_stabil", 2006, "Ketua Poktan Sri Rejeki"),
     ("Sri Rahayu", "Sungai Harapan", (-420, -215), (110, 100), "sawit_tua_stabil", 2013, "Ketua Poktan Sri Rejeki"),
@@ -115,6 +124,20 @@ def _quad(lat0: float, lng0: float, dx: float, dy: float, w: float, h: float, rn
         ring.append([round(ln, 7), round(la, 7)])
     ring.append(ring[0])
     return {"type": "Polygon", "coordinates": [ring]}
+
+
+def _legacy_scenario(roll: float) -> str:
+    """Cadangan bila tabel lapisan peta bawaan tidak ada (mis. lokasi demo diubah)."""
+    return ("dibuka_2019" if roll < 0.08 else "peremajaan_2023" if roll < 0.14 else "data_kurang" if roll < 0.18
+            else "sawit_tua_stabil")
+
+
+def _real_scenario(geom: dict) -> str | None:
+    real = peta_gfw.bundled(geom)
+    if not real:
+        return None
+    kw = kawasan_svc.lookup(geom, "lokal")
+    return demo_sim.scenario_from_layers(real, kw.pct)
 
 
 def _write_kawasan() -> None:
@@ -217,24 +240,20 @@ def seed(reset: bool = False) -> dict:
                             break
                     w, h = float(rng.uniform(95, 190)), float(rng.uniform(90, 170))
                     dx, dy = vx + c * 215, vy - r * 200
-                    sc = "sawit_tua_stabil"
-                    roll = rng.random()
-                    if roll < 0.08:
-                        sc = "dibuka_2019"
-                    elif roll < 0.14:
-                        sc = "peremajaan_2023"
-                    elif roll < 0.18:
-                        sc = "data_kurang"
-                    elif roll < 0.21:
-                        sc = "hutan_dibuka_2022"
-                    year = int(rng.integers(1998, 2016)) if sc == "sawit_tua_stabil" else (2019 if sc == "dibuka_2019" else 2023 if sc == "peremajaan_2023" else int(rng.integers(2005, 2015)))
-                    add_plot(nm, village, _quad(CENTER[0], CENTER[1], dx, dy, w, h, rng), sc,
+                    roll, y_old, y_mid = rng.random(), int(rng.integers(1998, 2016)), int(rng.integers(2005, 2015))
+                    geom = _quad(CENTER[0], CENTER[1], dx, dy, w, h, rng)
+                    # skenario NDVI mengikuti peta nyata di lokasi kebun (bukan diacak), agar peta = hasil analisis
+                    sc = _real_scenario(geom) or _legacy_scenario(roll)
+                    kind, yr = demo_sim.parse(sc)
+                    year = yr if kind in ("peremajaan", "dibuka") else y_old if sc == "sawit_tua_stabil" else y_mid
+                    add_plot(nm, village, geom, sc,
                              year if rng.random() < 0.85 else None, "Ketua Poktan" if rng.random() < 0.9 else None,
                              "ai_watershed" if rng.random() < 0.6 else "manual")
 
         for p in plots:
             # kebun contoh: kawasan dicek ke salinan lokal peta KLHK 2017 agar demo sama walau tanpa internet
-            plot_svc.apply_analysis(db, p, force_demo=True, kawasan_policy="lokal")
+            # lapisan peta nyata dari tabel bawaan (hasil hitungan tile GFW), juga agar sama tanpa internet
+            plot_svc.apply_analysis(db, p, force_demo=True, kawasan_policy="lokal", peta_policy="bundel")
             # analisis lama dibuat seolah-olah dijalankan saat kebun didaftarkan
             p.analyses[0].created_at = p.created_at + timedelta(minutes=3)
             p.analyzed_at = p.created_at + timedelta(minutes=3)
@@ -363,7 +382,7 @@ def _seed_verification(db, plots: list[Plot], now: datetime, rng: np.random.Gene
     joko = by_name["Joko Susilo"]
     db.add(Appeal(plot_id=joko.id, submitted_by="Rahmat Hidayat", evidence_type="foto_lapangan",
                   original_risk=joko.risk_level, created_at=now - timedelta(days=2),
-                  reason=("Menurut petani, lahan ini kebun karet tua sejak 2012, bukan hutan. Tahun 2022 karet ditebang lalu "
+                  reason=("Menurut petani, lahan ini kebun karet tua sejak 2012, bukan hutan. Pertengahan 2025 karet ditebang lalu "
                           "ditanami sawit. Ada foto tunggul karet dan kesaksian kepala dusun.")))
     audit.log(db, "Rahmat Hidayat", "koperasi", "keberatan_diajukan", "kebun", joko.id,
               f"Keberatan atas status {joko.code} (Foto lapangan / kesaksian)", None, at=now - timedelta(days=2))
