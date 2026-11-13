@@ -192,6 +192,11 @@ alam, jadi yang memutuskan adalah verifikator di lapangan (tunggul, umur tanaman
 piksel (hutan ∧ hilang), bukan dari dua persentase per kebun, supaya hutan di satu sudut dan peremajaan di sudut lain tidak
 terbaca sebagai deforestasi. Mengapa bukan *Natural Forests of the World 2020* (Google DeepMind/WRI, 10 m, akurasi 92,2%)?
 Peta itu lebih tajam, tetapi hanya tersedia di Earth Engine (butuh akun); SBTN tersedia sebagai tile publik tanpa kunci.
+
+Batasan peta kedua ini juga dicatat: akurasi keseluruhan lapisan hutan alam SBTN sekitar 88% (dilaporkan untuk v0.3), untuk
+Indonesia memakai data lokal MapBiomas, sebagian masukannya lebih tua dari 2020, agroforestri bernaung bisa terbaca hutan
+alam, dan hutan tanaman sengaja dikecualikan. Itu sebabnya ketidaksepakatan dua peta berakhir di verifikator, bukan di
+status Aman.
 Zoom 14 (piksel ~4,8 m dari data 30 m), hanya pusat piksel di dalam poligon yang dihitung. Untuk kebun contoh, hasil
 hitungan disimpan di `seed_data/lapisan_peta_demo.json` (dibangun `python -m app.scripts.bangun_lapisan_demo`, algoritma yang sama) agar demo identik
 tanpa internet; kebun baru dihitung online lalu tile disimpan di cache. Deret NDVI di mode demo tetap simulasi, tetapi
@@ -238,6 +243,7 @@ akan menuduh banyak petani peremajaan; indikator 2/3 sendirian akan melewatkan p
 - JRC GFC2020 accuracy: https://publications.jrc.ec.europa.eu/repository/handle/JRC141231
 - GFC2020, makalah data (Bourgoin dkk., ESSD 18:1331, 2026; galat komisi hutan 18%, kebun pohon): https://essd.copernicus.org/articles/18/1331/2026/essd-18-1331-2026-discussion.html
 - SBTN Natural Lands Map v1.1, kelas hutan alam di GFW: https://data-api.globalforestwatch.org/dataset/sbtn_natural_forests_map
+- Akurasi dan batasan lapisan hutan alam SBTN (Global Nature Watch): https://globalnaturewatch.org/blog/data-and-tools/new-data-distinguishes-natural-forests-other-tree-cover/
 - GFW Pro dan EUDR (hutan alam SBTN, peringatan terintegrasi, verifikasi citra): https://pro-news.globalforestwatch.org/news-events/how-gfw-pro-supports-eudr-compliance
 - Koltiva, kepatuhan EUDR (lapisan JRC, GFW, SBTN; agen lapangan): https://www.koltiva.com/eudrcompliance
 - Natural Forests of the World 2020 (Google Research): https://research.google/blog/separating-natural-forests-from-other-tree-cover-with-ai-for-deforestation-free-supply-chains/

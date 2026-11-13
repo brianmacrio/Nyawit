@@ -285,7 +285,7 @@ export function PassportPanel({
           <div className="span-2">
             <dt>Ketelitian lokasi</dt>
             <dd>
-              <span className="tier" aria-label={`tingkat ${r.precision.level} dari ${r.precision.of}`}>
+              <span className="tier" role="img" aria-label={`tingkat ${r.precision.level} dari ${r.precision.of}`}>
                 {Array.from({ length: r.precision.of }, (_, i) => <i key={i} className={i < r.precision.level ? "on" : ""} />)}
               </span>{" "}
               {r.precision.label}
@@ -438,7 +438,7 @@ export function PassportPanel({
       <div className="section">
         <h3>Paspor &amp; ekspor</h3>
         <div style={{ display: "flex", gap: 16, marginTop: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div className="qr-frame" style={{ opacity: r.ready ? 1 : 0.35 }} aria-label={`Kode QR ${plot.code}`} dangerouslySetInnerHTML={{ __html: qr }} />
+          <div className="qr-frame" role="img" style={{ opacity: r.ready ? 1 : 0.35 }} aria-label={`Kode QR ${plot.code}`} dangerouslySetInnerHTML={{ __html: qr }} />
           <div style={{ flex: 1, minWidth: 180, display: "grid", gap: 10 }}>
             {r.ready ? (
               <p className="small">QR hanya berisi kode paspor, tanpa nama atau NIK. Pengepul memindainya setiap membeli TBS.</p>

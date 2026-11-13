@@ -243,7 +243,7 @@ export default function Pabrik() {
         </section>
         <section className="panel panel-pad">
           <h2 style={{ fontSize: 18, marginBottom: 10 }}>Transaksi bermasalah terbaru</h2>
-          <div style={{ maxHeight: 300, overflow: "auto" }}>
+          <div style={{ maxHeight: 300, overflow: "auto" }} tabIndex={0} role="region" aria-label="Daftar transaksi bermasalah">
             {d.alerts.map((t) => (
               <div className="txn" key={t.id}>
                 <span><strong>{t.collector}</strong> <span className="small faint num">{t.plot_code}</span></span>

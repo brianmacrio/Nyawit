@@ -6,7 +6,7 @@
   --permukaan-2: #f6f8f5;
   --tinta: #14231c;
   --tinta-2: #4e5d55;
-  --tinta-3: #7a8780;
+  --tinta-3: #5f6c65; /* kontras >= 4,7:1 di semua latar terang (WCAG AA) */
   --garis: #d6ddd5;
   --garis-2: #e5eae4;
   --sampul: #0e4d41;
@@ -16,7 +16,7 @@
 
   --aman: #1e7a4b;
   --aman-bg: #e2f1e7;
-  --cek: #a86a12;
+  --cek: #8f5a0f; /* kontras >= 5:1 di putih dan latar kuning */
   --cek-bg: #fbefd9;
   --risiko: #b3261e;
   --risiko-bg: #fbe5e3;
