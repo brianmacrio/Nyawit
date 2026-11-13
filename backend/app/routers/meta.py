@@ -8,7 +8,7 @@ from ..db import get_db
 from ..models import User
 from ..security import rate_limit, require
 from ..services import delineation, kawasan, kawasan_gfw
-from ..services.satellite import live
+from ..services.satellite import live, peta_gfw
 
 router = APIRouter(prefix="/api", tags=["Meta"])
 
@@ -29,6 +29,7 @@ def meta():
         "eudr_application": EUDR_APPLICATION.isoformat(),
         "imagery": TILE_URL.split("/")[2],
         "kawasan": kawasan.status(),
+        "peta_gfw": peta_gfw.status(),
     }
 
 
@@ -63,6 +64,17 @@ def kawasan_peta(bbox: str = Query(..., description="minLng,minLat,maxLng,maxLat
     except kawasan_gfw.GfwError as e:
         return {"features": [], "error": str(e)[:200], "source_label": kawasan_gfw.SOURCE_LABEL}
     return {"type": "FeatureCollection", "features": feats, "source_label": kawasan_gfw.SOURCE_LABEL}
+
+
+@router.get("/uji-indikator", dependencies=[Depends(rate_limit("uji_indikator", 6, 300))])
+def uji_indikator(_: User = Depends(require())):
+    """Uji tiga indikator peta dengan kebun yang sengaja melanggarnya, memakai data online terbaru."""
+    from ..scripts.uji_indikator import evaluate
+
+    kawasan.reset_breaker()
+    peta_gfw.reset_breaker()
+    results = evaluate()
+    return {"results": results, "passed": sum(r["passed"] for r in results), "total": len(results)}
 
 
 @router.post("/demo/reset", dependencies=[Depends(rate_limit("reset", 3, 600))])
