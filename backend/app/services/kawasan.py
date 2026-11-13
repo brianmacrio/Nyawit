@@ -44,6 +44,7 @@ from shapely.validation import make_valid
 
 from ..config import DATA_DIR, KAWASAN_CACHE_DIR, KAWASAN_LAYERS, KAWASAN_SOURCE, KAWASAN_TIMEOUT, KAWASAN_URL
 from . import kawasan_gfw, kawasan_raster
+from .fmt import dec
 
 UA = "PasporKebun/1.0 (cek status kawasan hutan kebun petani; MVP hackathon)"
 CELL_DEG = 0.01
@@ -645,6 +646,18 @@ def lookup(geom: dict, policy: str | None = None) -> KawasanResult:
         else:
             warnings.append(f"Peta kawasan Kemenhut belum bisa diakses ({err}). Analisis ulang saat internet tersedia.")
 
+    # Pembanding: salinan lokal peta KLHK 2017 (GFW). Bila peta Kemenhut terbaru berbeda di kebun ini,
+    # pengguna perlu tahu mengapa lapisan "Kawasan hutan KLHK 2017" di peta tidak sama dengan hasil cek.
+    pct_2017 = None
+    if kemenhut_ok:
+        g17 = [_polygonal(shape(a["geometry"])) for a in local_areas()
+               if a.get("gfw_fid") is not None and FUNGSI.get(a["fungsi"], {}).get("kawasan")]
+        g17 = [g for g in g17 if g is not None and g.intersects(plot)]
+        covered = any(_contains_bounds(e["extent"], plot.bounds) for e in local_extents()
+                      if any(a["file"] == e["file"] and a.get("gfw_fid") is not None for a in local_areas()))
+        if g17 or covered:
+            pct_2017 = round(min(unary_union([plot.intersection(g) for g in g17]).area / area, 1.0) * 100, 1) if g17 and area else 0.0
+
     local_used: set[str] = set()
     local_labels: set[str] = set()
     local_covers = any(not a["is_demo"] and _contains_bounds(a["extent"], plot.bounds) for a in local_extents())
@@ -719,6 +732,15 @@ def lookup(geom: dict, policy: str | None = None) -> KawasanResult:
         source, label, when = "tidak_ada", "Belum ada peta kawasan yang bisa diperiksa", None
     if (kemenhut_ok or gfw_ok) and "ilustrasi" in local_used:
         label += " + peta ilustrasi demo"
+
+    if pct_2017 is not None:
+        if pct_2017 > 5 and pct <= 5:
+            warnings.append(f"Peta Kawasan Hutan KLHK 2017 masih mencatat {dec(pct_2017, 0)}% kebun ini sebagai kawasan hutan, "
+                            "tetapi peta Kemenhut terbaru tidak. Keputusan memakai peta terbaru; simpan bukti SK pelepasan "
+                            "atau perubahan batas bila ada.")
+        elif pct > 5 and pct_2017 <= 5:
+            warnings.append(f"Peta Kemenhut terbaru mencatat {dec(pct, 0)}% kebun ini sebagai kawasan hutan, padahal peta KLHK "
+                            "2017 belum. Kemungkinan ada perubahan batas/SK sesudah 2017; keputusan memakai peta terbaru.")
 
     checked = kemenhut_ok or gfw_ok or "lokal" in local_used or local_covers
     return KawasanResult(
