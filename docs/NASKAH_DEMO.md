@@ -10,10 +10,11 @@
 - Rekaman utuh dan berkesinambungan. Boleh memotong waktu tunggu dan menambah teks/musik, tapi tidak boleh mengubah hasil.
 - Narasi boleh ada boleh tidak. Naskah ini memakai caption singkat.
 
-**Soal data simulasi.** Di mode demo, deret NDVI per kebun adalah simulasi berlabel (aplikasi menuliskannya di paspor).
-Proses AI-nya nyata, tetapi agar tidak dianggap "simulasi hasil", lakukan dua hal: (a) tampilkan caption "mode demo: deret
-NDVI simulasi berlabel; citra, peta kawasan, dan semua perhitungan berjalan sungguhan", dan (b) bila `check_live` berhasil
-di laptop, rekam satu kebun nyata dengan `PK_SATELLITE_MODE=live`.
+**Soal data simulasi.** Di mode demo, hanya deret NDVI per kebun yang simulasi berlabel (aplikasi menuliskannya di paspor).
+Lapisan bukti deforestasi (hutan JRC 2020, kehilangan tutupan Hansen) dan peta kawasan dibaca dari peta nyata. Agar tidak
+dianggap "simulasi hasil": (a) tampilkan caption "mode demo: deret NDVI simulasi berlabel; citra, peta hutan, kehilangan
+tutupan, peta kawasan, dan semua perhitungan sungguhan", dan (b) bila `check_live` berhasil di laptop, rekam satu kebun nyata
+dengan `PK_SATELLITE_MODE=live`.
 
 Persiapan: hapus `backend/data`, jalankan `start.bat`, pastikan internet aktif (citra & peta kawasan). Rekam 1440x900,
 perbesar kursor, jeda 1-2 detik setelah setiap hasil muncul.
@@ -23,13 +24,13 @@ perbesar kursor, jeda 1-2 detik setelah setiap hasil muncul.
 | 0:00–0:15 | **Beranda**: judul, paspor contoh, langkah empat pihak | "PasporKebun: paspor digital kebun sawit rakyat untuk EUDR." |
 | 0:15–0:25 | **Masuk** → klik kartu "Petugas koperasi" | "Setiap peran punya akun sendiri." |
 | 0:25–1:15 | **Peta kebun** → Daftarkan kebun → "Saya sedang di kebun" (di laptop: simulasikan posisi) → draf AI muncul; tunjukkan model, keyakinan, waktu proses | "Petugas berdiri di kebun. GPS mencatat titik, AI menggambar batas dari citra satelit." |
-| 1:15–1:45 | Isi batas tiap sisi, 2 saksi, bukti lahan "Surat desa", STDB "Sedang diurus"; skenario "Hutan dibuka 2022"; setuju; Simpan | "Tidak perlu membaca citra: cukup sebutkan parit, jalan, dan tetangga di tiap sisi." |
-| 1:45–2:20 | Paspor: cap BERISIKO, checklist Siap EUDR (syarat yang gagal), bukti satelit, grafik NDVI dengan garis merah | "AI membaca riwayat sejak 2018: hutan dibuka 2022, setelah batas EUDR." |
-| 2:20–2:40 | Buka kebun Sutrisno (PK-00003-P) | "Peremajaan sawit 2023 bukan deforestasi. Petani PSR tetap aman." |
+| 1:15–1:45 | Isi batas tiap sisi, 2 saksi, bukti lahan "Surat desa", STDB "Sedang diurus"; deret NDVI "Ikuti peta nyata"; setuju; Simpan | "Tidak perlu membaca citra: cukup sebutkan parit, jalan, dan tetangga di tiap sisi." |
+| 1:45–2:20 | Buka kebun **Joko (PK-00004-U)** + centang lapisan "Hutan 2020 (JRC)" dan "Kehilangan tutupan pohon": cap BERISIKO, checklist Siap EUDR, bukti satelit | "Peta nyata: hutan pada 2020, ditebang 2025. Melanggar syarat bebas deforestasi walau di APL." |
+| 2:20–2:40 | Buka kebun Sutrisno (PK-00003-P): kebun juga berwarna merah muda di lapisan kehilangan tutupan | "Tutupan hilang 2023, tapi lahannya bukan hutan pada 2020: peremajaan, bukan deforestasi. Petani PSR tetap aman." |
 | 2:40–3:20 | Masuk sebagai pengepul **UD Sinar Jaya** → ketik PK-00001-F → 9.000 kg → **Ditahan** | "9 ton dari kebun 2 ha? Mustahil. TBS dari luar ditahan di titik pengepul." |
 | 3:20–3:50 | Masuk sebagai **verifikator** → Inspeksi lapangan → isi satu hasil + foto → tab Keberatan (Joko Susilo) → tab Integritas | "Verifikator independen memeriksa sampel kebun; riwayat tidak bisa diubah diam-diam." |
 | 3:50–4:30 | Masuk sebagai **pabrik** → tabel pengepul (UD Sinar Jaya skor tertinggi + alasan) → Buat paket ekspor → angka masuk/dipisahkan → unduh ZIP | "Pabrik hanya mengirim TBS dari kebun Siap EUDR, lengkap dengan bukti untuk importir." |
-| 4:30–4:50 | **Cara kerja AI**: akurasi, batasan, keamanan | "Akurasi dan batasan AI dibuka; semua berjalan di CPU." |
+| 4:30–4:50 | **Cara kerja AI** → "Jalankan uji sekarang" (Uji indikator peta), lalu akurasi dan batasan | "Tiap indikator diuji dengan kebun yang sengaja melanggarnya, ke peta online saat ini." |
 | 4:50–5:00 | **Cek paspor publik** /cek/PK-00001-F | "Siapa pun bisa mengecek paspor. Nama petani disamarkan." |
 
 Batas kawasan hutan di peta (garis putus-putus kuning = hutan produksi, merah = taman nasional) adalah data resmi, bukan
@@ -39,6 +40,10 @@ berada di Hutan Produksi, tepat di seberang garis kuning dari kebun tetangganya.
 
 (Opsional) Geser peta ke barat laut sampai TN Tesso Nilo, daftarkan kebun di dalamnya: paspor langsung menulis "masuk
 Kawasan konservasi" dan menyebut sumber petanya. Uji sehari sebelumnya agar tile peta tersimpan di cache.
+
+(Opsional, kebun baru yang berisiko secara langsung) Daftarkan kebun di bekas hutan yang dibuka 2025 sekitar
+-0,4570, 102,0945 (±8 km selatan desa, APL): analisis membaca peta hutan JRC dan kehilangan tutupan di lokasi itu saat itu
+juga, lalu memberi cap BERISIKO. Butuh internet; uji sehari sebelumnya.
 
 # Babak final (15 menit per tim)
 
@@ -67,8 +72,14 @@ Rincian slot: 1 menit persiapan laptop dan verifikasi localhost, **7 menit prese
 - *Siapa yang membayar?* Pabrik/eksportir, karena merekalah yang harus membuktikan asal buah. Petani gratis.
 - *Bagaimana jika pengepul tidak mau memindai?* Pabrik menimbang setoran; selisih setoran vs transaksi tertelusur terlihat di
   dasbor dan menaikkan skor anomali pengepul itu. Paket ekspor juga memisahkan TBS yang tidak tertelusur.
-- *Akurasinya diuji dengan data nyata?* Validasi saat ini pada data simulasi berlabel; algoritma mengikuti metode yang sudah
-  divalidasi di literatur. Pilot akan memakai titik referensi lapangan dari inspeksi verifikator.
+- *Akurasinya diuji dengan data nyata?* COLD-lite divalidasi pada data simulasi berlabel; algoritma mengikuti metode yang sudah
+  divalidasi di literatur. Tiga indikator peta diuji dengan kebun di lokasi nyata yang sengaja melanggarnya (halaman Cara kerja
+  AI, atau `python -m app.scripts.uji_indikator`). Pilot akan memakai titik referensi lapangan dari inspeksi verifikator.
+- *Apakah tiga indikator itu cukup untuk menentukan kebun berisiko?* Masing-masing menjawab pertanyaan berbeda.
+  Kehilangan tutupan pohon belum tentu deforestasi (peremajaan juga tercatat), jadi dipadukan dengan peta hutan JRC 2020:
+  hilang di lahan hutan = berisiko, hilang di lahan bukan hutan = peremajaan. Peta kawasan hutan menjawab legalitas, bukan
+  tutupan. Peta global punya galat, sehingga kasus meragukan menjadi "Perlu cek" dan diteruskan ke verifikasi lapangan,
+  sesuai cara Whisp (FAO) dan pedoman Komisi Eropa. Rincian: docs/ALGORITMA.md bagian 7.
 - *Batas kawasan hutan itu digambar sendiri?* Tidak. Sumber utama peta Kawasan Hutan Kemenhut; bila servernya mati (seperti
   12 Nov 2026), aplikasi otomatis memakai Peta Kawasan Hutan KLHK 2017 dari Global Forest Watch, dan paspor menyebut sumbernya.
   Satelit tidak bisa melihat status hukum lahan; yang dilihat satelit adalah tutupan pohon dan riwayatnya.

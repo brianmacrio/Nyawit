@@ -110,8 +110,11 @@ tidak tahu status hukum ini, jadi kami membaca peta resmi:
      diaudit daripada model yang dilatih.
 8. Data demo: kebun contoh ditempatkan di Areal Penggunaan Lain menurut peta yang sama (area "Kebun Swadaya" di sisi tenggara
    TN Tesso Nilo, Riau). Lokasi demo lama ternyata berada di dalam TN Tesso Nilo menurut peta resmi, jadi seluruh kebun contoh
-   dipindahkan. Potongan peta di sekitar lokasi demo disimpan di `app/seed_data/` agar demo tetap jalan tanpa internet;
-   satu kebun (Rina Wati) sengaja diletakkan di Hutan Produksi.
+   dipindahkan. Potongan peta di sekitar lokasi demo (bbox 102,02–102,13; -0,445–-0,30) disimpan di `app/seed_data/` agar demo
+   tetap jalan tanpa internet; satu kebun (Rina Wati) sengaja diletakkan di Hutan Produksi.
+9. Bila peta Kemenhut terbaru dan salinan peta KLHK 2017 berbeda di satu kebun (> 5% luas), paspor memberi peringatan dan
+   keputusan memakai peta terbaru. Di sekitar lokasi demo kedua peta hampir sama; perbedaannya hanya potongan tipis di tepi batas
+   (beda digitasi skala 1:250.000).
 
 Batasan: peta kawasan berskala kecil dan bisa tertinggal dari SK pelepasan terbaru. Karena itu hasil "masuk kawasan" adalah
 sinyal untuk diverifikasi (sertifikat, SK pelepasan, cek lapangan), bukan vonis.
@@ -143,6 +146,66 @@ sehingga perubahan atau penghapusan diam-diam di database terdeteksi oleh `verif
 volume, bukti bebas deforestasi dan legalitas. Hanya kebun Siap EUDR yang masuk; pedoman EUDR menyatakan pencampuran
 (*mass balance*) tidak diterima. Nama petani tidak disertakan karena tidak diwajibkan.
 
+## 7. Tiga indikator peta: apa yang diukur, uji pelanggaran, dan validitasnya
+
+Peta Kebun punya tiga lapisan indikator. Masing-masing menjawab pertanyaan yang berbeda, jadi tidak ada satu pun yang boleh
+dipakai sendirian untuk memvonis kebun.
+
+| Indikator | Pertanyaan yang dijawab | Bila menyala, artinya | Batasan utama |
+|---|---|---|---|
+| 1. Kehilangan tutupan pohon 2021–2025 (Hansen/GLAD lewat GFW) | Apakah pohon di kebun ini hilang sesudah batas EUDR? | Ada penebangan/pembukaan; **belum tentu deforestasi** | Mencatat semua pohon > 5 m yang hilang, termasuk peremajaan dan panen kebun; tidak tahu apakah lahan itu hutan |
+| 2. Kawasan hutan KLHK 2017 (GFW) | Apakah lahan ini kawasan hutan menurut peta resmi 2017? | Masalah **legalitas**: sawit hanya sah di luar kawasan atau setelah pelepasan | Data 2017, skala 1:250.000; tidak memuat SK pelepasan sesudahnya |
+| 3. Kawasan hutan peta Kemenhut terbaru (Juni 2026) | Sama, menurut peta terbaru | Sama; peta ini yang dipakai untuk keputusan bila terjangkau | Skala 1:250.000 (tepi batas bisa bergeser puluhan–ratusan meter); bisa tertinggal dari SK terbaru |
+
+**Mengapa indikator 1 dipadukan dengan peta hutan JRC 2020.** Definisi deforestasi EUDR adalah konversi *hutan* menjadi
+lahan pertanian sesudah 31 Des 2020, dan kebun sawit bukan hutan. Global Forest Watch sendiri menegaskan bahwa kehilangan
+tutupan pohon tidak sama dengan deforestasi (termasuk panen/peremajaan kebun). Karena itu sejak versi ini, di mode demo pun,
+aplikasi membaca dua lapisan nyata per piksel di dalam batas kebun (`services/satellite/peta_gfw.py`):
+
+- Hansen GFC (tile GFW render "encoded"): kanal biru = tahun kehilangan − 2000, ambang kerapatan tajuk 30%.
+- JRC Global Forest Cover 2020 v2020.3: peta hutan acuan Komisi Eropa untuk EUDR, yang sengaja tidak menghitung kebun
+  sawit/karet sebagai hutan.
+
+Aturannya: kehilangan sesudah 2020 di lahan yang hutan pada 2020 → **Berisiko** (aturan 4); kehilangan sesudah 2020 di lahan
+yang bukan hutan → **Aman, peremajaan** (aturan 1-peremajaan); hutan 2020 tanpa kehilangan → **Perlu cek** (aturan 5).
+Zoom 14 (piksel ~4,8 m dari data 30 m), hanya pusat piksel di dalam poligon yang dihitung. Untuk kebun contoh, hasil
+hitungan disimpan di `seed_data/lapisan_peta_demo.json` (dihitung 13 Nov 2026 dengan algoritma yang sama) agar demo identik
+tanpa internet; kebun baru dihitung online lalu tile disimpan di cache. Deret NDVI di mode demo tetap simulasi, tetapi
+skenarionya mengikuti peta nyata, dan paspor memberi peringatan bila keduanya bertentangan.
+
+**Kebun yang sengaja melanggar tiap indikator** (lokasi dipilih dari data nyata, lihat `seed.py` dan
+`app/scripts/uji_indikator.py`; uji juga bisa dijalankan dari halaman *Cara kerja AI* → *Uji indikator peta*):
+
+| Kebun uji | Indikator 1 | Indikator 2 | Indikator 3 | Hutan JRC 2020 | Keputusan yang benar |
+|---|---|---|---|---|---|
+| Joko Susilo (PK-00004-U) | menyala: 100% hilang 2025 | tidak (APL) | tidak (APL) | 100% | Berisiko: hutan dibuka 2025 |
+| Sutrisno Wibowo (PK-00003-P) | menyala: 100% hilang 2023 | tidak | tidak | 0% | Aman: peremajaan, bukan deforestasi |
+| Rina Wati (PK-00005-Z) | tidak | menyala: 100% Hutan Produksi | menyala: Hutan Produksi Tetap | 0% | Berisiko: legalitas |
+| Kebun uji di TN Tesso Nilo | tidak (dibuka 2011) | menyala: konservasi | menyala: konservasi | 0% | Berisiko: legalitas, walau lolos uji deforestasi |
+| Darmawan Lubis (PK-00006-E) | tidak | tidak | tidak | 92% | Perlu cek lapangan |
+| Budi Santoso (PK-00001-F) | tidak | tidak | tidak | 0% | Aman |
+
+Pemindaian 0,16° x 0,16° di sekitar desa demo menunjukkan pola yang penting untuk validitas: di APL, kehilangan tutupan
+sesudah 2020 sangat sering (blok peremajaan 2023–2025), tetapi hampir semuanya di lahan yang bukan hutan menurut JRC.
+Kehilangan hutan sesudah 2020 justru banyak terjadi di dalam kawasan hutan (TN Tesso Nilo, HP). Jadi indikator 1 sendirian
+akan menuduh banyak petani peremajaan; indikator 2/3 sendirian akan melewatkan pembukaan hutan di APL (kasus Joko).
+
+**Apakah ketiganya valid untuk memutuskan kebun berisiko?** Valid sebagai *bukti*, tidak sebagai *vonis*:
+
+- Kehilangan tutupan (Hansen) tidak membedakan hutan dan kebun; tanpa peta hutan/komoditas, hasilnya bias ke positif palsu
+  di daerah peremajaan.
+- Peta hutan 2020 global punya galat. Studi 21 peta global (Freitas Beyer dkk., 2025, dilaporkan Mongabay) menemukan hanya 2
+  yang memenuhi indikator kualitas untuk EUDR dan banyak yang melebih-lebihkan hutan; JRC sendiri menyatakan petanya tidak
+  mengikat dan perlu dilengkapi data lokal. Sawit swadaya tua yang rapat bisa terbaca hutan (kasus Darmawan → Perlu cek).
+- Pemetaan sawit rakyat oleh satelit masih sulit (akurasi pembeda swadaya/perkebunan ~64% di studi Gaveau dkk. 2022), sebab
+  itu lapisan komoditas belum dipakai di mode demo dan JRC yang dipakai sebagai pemisah.
+- Peta kawasan hutan adalah dasar legalitas, bukan tutupan lahan. Indonesia belum punya satu peta yang disepakati semua
+  pihak; ±3,3 juta ha sawit berada di kawasan hutan dan sebagian sedang diproses lewat UU Cipta Kerja Pasal 110A/110B. Jadi
+  "masuk kawasan" berarti perlu dokumen (SK pelepasan, keterlanjuran), bukan otomatis ilegal selamanya.
+- Pendekatan yang dianjurkan (Whisp/FAO, pedoman Komisi Eropa): gabungkan beberapa peta (convergence of evidence), lalu
+  verifikasi lapangan dan dokumen untuk kasus yang meragukan. Aplikasi mengikuti itu: tiga indikator + JRC + time series →
+  Aman/Perlu cek/Berisiko dengan alasan, dan setiap status bisa diajukan keberatan dengan bukti.
+
 ## Sumber
 
 - Whisp: https://pypi.org/project/openforis-whisp/
@@ -160,6 +223,16 @@ volume, bukti bebas deforestasi dan legalitas. Hanya kebun Siap EUDR yang masuk;
 - Peta Kawasan Hutan Indonesia KLHK 2017 di Global Forest Watch: https://data-api.globalforestwatch.org/dataset/idn_forest_area
   (tile: https://tiles.globalforestwatch.org/idn_forest_area/v201709/dynamic/{z}/{x}/{y}.pbf, lisensi CC BY 4.0)
 - Spesifikasi Mapbox Vector Tile 2.1: https://github.com/mapbox/vector-tile-spec
+- Tile kehilangan tutupan Hansen dan JRC GFC2020 di GFW: https://data-api.globalforestwatch.org/dataset/umd_tree_cover_loss ,
+  https://data-api.globalforestwatch.org/dataset/jrc_global_forest_cover
+- GFW, data satelit untuk EUDR (kehilangan tutupan ≠ deforestasi): https://globalnaturewatch.org/blog/data/satellite-data-eu-regulation-deforestation-free-supply-chains/
+- JRC GFC2020 di Earth Engine (tidak mengikat, sawit tidak dihitung hutan): https://developers.google.com/earth-engine/datasets/catalog/JRC_GFC2020_V3
+- Kualitas 21 peta hutan global untuk EUDR (Mongabay, Des 2025): https://news.mongabay.com/2025/12/researchers-find-concerning-gaps-in-global-maps-used-for-eudr-compliance/
+- Whisp, convergence of evidence (FAO): https://www.fao.org/fileadmin/user_upload/faoweb/NFM/WhispOverview.pdf
+- Pemetaan sawit swadaya vs perkebunan (Gaveau dkk. 2022): https://pmc.ncbi.nlm.nih.gov/articles/PMC8963565
+- Legalitas sawit di kawasan hutan (ClientEarth, Apr 2025): https://www.clientearth.org/media/hgvgx5wo/was-it-produced-legally_indonesia_clientearth_april-2025.pdf
+- 3,3 juta ha sawit di kawasan hutan, kebutuhan satu peta (Antara 2025): https://kalbar.antaranews.com/berita/629045/satu-peta-hutan-diperlukan-untuk-tertibkan-lahan-sawit
+- Proses keterlanjuran Pasal 110A/110B (Mongabay, Mar 2025): https://mongabay.co.id/2025/03/03/menyoal-pemutihan-sawit-hampir-800-ribu-hektar/amp/
 - RSPO Independent Smallholder Standard 2024: https://rspo.org/wp-content/uploads/Consolidated-ISH-2024_Adopted_13112024.pdf
 - Permentan No. 33 Tahun 2025 (ISPO): https://peraturan.go.id/files/permentan-no-33-tahun-2025.pdf
 - Pedoman EUDR C/2026/3896: https://eur-lex.europa.eu/eli/C/2026/3896/oj/eng
