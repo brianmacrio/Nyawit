@@ -27,7 +27,6 @@ from ...config import TS_CACHE_DIR, TS_START
 STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 HANSEN_VERSION = os.getenv("PK_HANSEN_VERSION", "GFC-2024-v1.12")
 HANSEN_URL = "https://storage.googleapis.com/earthenginepartners-hansen/{v}/Hansen_{v}_{layer}_{tile}.tif"
-HANSEN_LAST_YEAR = 2000 + int(os.getenv("PK_HANSEN_LAST", "24"))
 SCL_OK = {4, 5, 6, 7, 11}  # vegetasi, non-vegetasi, air, tak terklasifikasi, salju
 
 os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")

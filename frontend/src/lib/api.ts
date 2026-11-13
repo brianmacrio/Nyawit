@@ -102,7 +102,6 @@ export const api = {
   // pabrik
   dashboard: () => req<Dashboard>("/api/dashboard"),
   shipments: () => req<Shipment[]>("/api/shipments"),
-  shipment: (id: number) => req<Shipment>(`/api/shipments/${id}`),
   createShipment: (data: { buyer: string; destination: string; period_start: string; period_end: string }) =>
     post<Shipment>("/api/shipments", data),
   shipmentZipUrl: (id: number) => `/api/shipments/${id}/package.zip`,
@@ -124,7 +123,6 @@ export const api = {
   auditVerify: () => req<{ ok: boolean; events: number; broken_at: number | null; message: string; head?: string }>("/api/audit/verify"),
   auditRecent: (limit = 30) => req<AuditEvent[]>(`/api/audit?limit=${limit}`),
 
-  resetDemo: () => post<{ detail: string }>("/api/demo/reset", {}),
   eudrPlotUrl: (id: number) => `/api/plots/${id}/eudr.geojson`,
   eudrAllUrl: () => "/api/dashboard/eudr.geojson",
 };

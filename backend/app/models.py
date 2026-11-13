@@ -157,12 +157,6 @@ class Delivery(Base):
     collector: Mapped[Collector] = relationship()
 
 
-class Setting(Base):
-    __tablename__ = "settings"
-    key: Mapped[str] = mapped_column(String(64), primary_key=True)
-    value: Mapped[str] = mapped_column(Text)
-
-
 class User(Base):
     """Akun pengguna. Kata sandi disimpan sebagai hash PBKDF2-SHA256 (tidak pernah teks asli)."""
 

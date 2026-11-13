@@ -42,11 +42,6 @@ def area_ha(geom: dict[str, Any]) -> float:
     return to_local_m(geom, lat0, lng0).area / 10_000
 
 
-def perimeter_m(geom: dict[str, Any]) -> float:
-    lat0, lng0 = centroid(geom)
-    return to_local_m(geom, lat0, lng0).length
-
-
 COORD_DECIMALS = 6  # ~11 cm; sama dengan presisi yang disimpan Sistem Informasi EUDR (TRACES memotong ke 6 desimal)
 
 
@@ -102,25 +97,8 @@ def overlap(geom_a: dict[str, Any], geom_b: dict[str, Any]) -> tuple[float, dict
     return area_ha(g), g
 
 
-def overlap_fraction(geom: dict[str, Any], other: dict[str, Any]) -> float:
-    a = shape(geom)
-    if a.area == 0:
-        return 0.0
-    b = shape(other)
-    if not a.intersects(b):
-        return 0.0
-    return float(a.intersection(b).area / a.area)
-
-
 def bbox(geom: dict[str, Any]) -> tuple[float, float, float, float]:
     return shape(geom).bounds  # minx(lng), miny(lat), maxx, maxy
-
-
-def haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dp, dl = p2 - p1, math.radians(lng2 - lng1)
-    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
-    return 2 * EARTH_R * math.asin(math.sqrt(a)) / 1000
 
 
 # ---------- Web Mercator (slippy map) ----------

@@ -53,7 +53,6 @@ SERVICE_CACHE_DAYS = 7
 SERVICE_INFO_V = 2  # naikkan bila isi _layanan.json berubah
 BREAKER_S = 300  # setelah gagal, jangan coba online lagi selama 5 menit (agar aplikasi tetap cepat)
 GENERALIZE_DEG = 0.00005  # ~5,5 m; jauh di bawah ketelitian peta kawasan
-T_SIGNIFICANT = 5.0
 SOURCE_LABEL = "Peta Kawasan Hutan, Kementerian Kehutanan (SIGAP, Permen LHK 7/2021)"
 RENDER_ONLY_NOTE = "dibaca dari gambar peta resmi"
 

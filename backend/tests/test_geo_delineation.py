@@ -1,5 +1,3 @@
-import numpy as np
-
 from app.services import geo
 from app.services.delineation import _clean, _mask_watershed
 from app.services.plots import make_code, parse_code

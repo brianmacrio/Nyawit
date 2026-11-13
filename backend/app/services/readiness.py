@@ -27,15 +27,6 @@ LAND_PROOF_LABEL = {
     "pernyataan": "Pernyataan penguasaan fisik + 2 saksi",
 }
 STDB_LABEL = {"ada": "STDB sudah terbit", "proses": "STDB sedang diurus", "belum": "STDB belum diurus"}
-SIDES = ("utara", "timur", "selatan", "barat")
-SIDE_TYPES = {
-    "parit": "Parit/kanal",
-    "jalan": "Jalan",
-    "kebun": "Kebun tetangga",
-    "hutan": "Hutan/semak",
-    "sungai": "Sungai",
-    "lainnya": "Lainnya",
-}
 EUDR_POINT_MAX_HA = 4.0
 
 

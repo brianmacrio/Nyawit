@@ -6,7 +6,6 @@ demo tetap jalan saat internet lambat setelah area pernah dibuka.
 from __future__ import annotations
 
 import io
-import math
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -55,8 +54,3 @@ def fetch_patch(lat: float, lng: float, z: int, radius_tiles: int = 1) -> tuple[
     origin_x = (tx - radius_tiles) * TILE_SIZE
     origin_y = (ty - radius_tiles) * TILE_SIZE
     return mosaic, float(origin_x), float(origin_y)
-
-
-def tile_xy(lat: float, lng: float, z: int) -> tuple[int, int]:
-    gx, gy = latlng_to_global_px(lat, lng, z)
-    return int(math.floor(gx / TILE_SIZE)), int(math.floor(gy / TILE_SIZE))

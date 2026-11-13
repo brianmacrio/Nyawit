@@ -29,7 +29,6 @@ from .models import User
 COOKIE = "pk_session"
 CSRF_HEADER = "x-requested-with"
 CSRF_VALUE = "PasporKebun"
-ROLES = ("koperasi", "pengepul", "pabrik", "verifikator", "admin")
 ROLE_LABEL = {
     "koperasi": "Petugas koperasi",
     "pengepul": "Pengepul",

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -37,7 +37,6 @@ class OverlapIn(BaseModel):
 SideType = Literal["parit", "jalan", "kebun", "hutan", "sungai", "lainnya"]
 LandProof = Literal["sertifikat", "surat_desa", "pernyataan"]
 StdbStatus = Literal["ada", "proses", "belum"]
-SafeText = Field(default=None, max_length=120)
 
 
 class SideIn(BaseModel):
@@ -154,8 +153,3 @@ class TransactionIn(BaseModel):
     collector_id: int | None = None  # diisi otomatis dari akun pengepul
     weight_kg: float = Field(gt=0, le=40_000)
     created_at: datetime | None = None
-
-
-class ApiMessage(BaseModel):
-    detail: str
-    extra: dict[str, Any] | None = None
