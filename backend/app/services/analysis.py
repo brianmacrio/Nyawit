@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 
-from ..config import EUDR_CUTOFF, SATELLITE_MODE
+from ..config import EUDR_CUTOFF, PETA_GFW, SATELLITE_MODE
 from . import evidence, geo, kawasan, timeseries
 from .satellite import demo, peta_gfw
 
@@ -66,6 +66,7 @@ def run(geom: dict, plot_code: str, scenario: str | None, force_demo: bool = Fal
             warnings.append(f"Mode live gagal ({e}); memakai data simulasi.")
             mode = "demo"
     real_layers = False
+    map_unread = False  # peta nyata diaktifkan tetapi tidak terbaca (offline): bukti simulasi tidak boleh menghasilkan "Aman"
     if mode != "live":
         sc = scenario if demo.is_scenario(scenario) else "sawit_tua_stabil"
         s = demo.simulate_series(sc, plot_code)
@@ -86,12 +87,19 @@ def run(geom: dict, plot_code: str, scenario: str | None, force_demo: bool = Fal
             layers = demo.simulate_layers(sc, plot_code)
             sources.append("Lapisan bukti simulasi: " + demo.info(sc)["label"])
             if peta_policy != "mati" and err:
-                warnings.append(f"Lapisan peta nyata (JRC/Hansen dari Global Forest Watch) belum terbaca ({err[:100]}); "
+                warnings.append(f"Lapisan peta nyata (JRC/SBTN/Hansen dari Global Forest Watch) belum terbaca ({err[:100]}); "
                                 "memakai lapisan simulasi.")
+                map_unread = PETA_GFW
 
     ts = timeseries.detect_changes(dates, values, cutoff=EUDR_CUTOFF) if dates else None
     decision = evidence.decide(layers or {}, ts, kw["pct"], kawasan=kw, strict=mode == "live", forest_map=forest_map,
                                layer_sources=layer_sources)
+    if map_unread and decision.risk_level == "rendah":
+        # Tanpa peta hutan nyata, status Aman hanya bersandar pada angka simulasi. Lebih jujur menahan keputusan.
+        decision.risk_level, decision.rule, decision.confidence = "perlu_cek", "aturan-peta-belum-terbaca", 0.4
+        decision.headline = "Perlu cek: peta hutan belum terbaca, bukti satelit di bawah ini masih simulasi"
+        decision.notes.append("Peta hutan dan kehilangan tutupan (Global Forest Watch) tidak terjangkau saat analisis ini, jadi "
+                              "status Aman belum bisa diberikan. Jalankan 'Cek ulang satelit' saat internet tersedia.")
     warnings += kw["warnings"]
     sources.append(kw["source_label"])
     ms = int((time.perf_counter() - t0) * 1000)

@@ -8,18 +8,28 @@ from app.services.satellite import demo, peta_gfw as pg
 Z = pg.Z
 
 
-def _tiles_with(region_px, loss_b=None, forest=False, size=512, jsize=256):
-    """Satu tile kehilangan (render 'encoded') + satu tile JRC; `region_px` = (i0, j0, i1, j1) di tile kehilangan."""
+def _tiles_with(region_px, loss_b=None, forest=False, size=512, jsize=256, natural=None):
+    """Satu tile kehilangan (render 'encoded') + satu tile JRC; `region_px` = (i0, j0, i1, j1) di tile kehilangan.
+
+    `natural` = wilayah hutan alam di peta kedua (SBTN), None = peta kedua tidak terbaca, () = terbaca tanpa hutan.
+    """
     loss = np.zeros((size, size, 4), np.uint8)
     loss[..., 0] = 1  # warna latar tile asli (tanpa kehilangan) memakai R=1, bukan 255
     jrc = np.zeros((jsize, jsize, 4), np.uint8)
     i0, j0, i1, j1 = region_px
     if loss_b is not None:
         loss[j0:j1, i0:i1] = (255, 120, loss_b, 255)
+    s = jsize / size
     if forest:
-        s = jsize / size
         jrc[int(j0 * s):int(j1 * s), int(i0 * s):int(i1 * s)] = (114, 102, 249, 230)
-    return {"loss": loss, "jrc": jrc}
+    tiles = {"loss": loss, "jrc": jrc}
+    if natural is not None:
+        sbtn = np.zeros((jsize, jsize, 4), np.uint8)
+        if natural:
+            a0, b0, a1, b1 = natural
+            sbtn[int(b0 * s):int(b1 * s), int(a0 * s):int(a1 * s)] = (44, 102, 57, 255)
+        tiles["sbtn"] = sbtn
+    return tiles
 
 
 def _box_for(tx, ty, i0, j0, i1, j1, size=512):
@@ -60,6 +70,59 @@ def test_forest_cleared_after_2020_counts_as_deforestation():
     assert out["loss_after_main_year"] == "2025" and out["disturbance_before_2021"] == 0.0
     d = evidence.decide(out, None, 0.0, forest_map="jrc", layer_sources=pg.LAYER_SOURCES)
     assert d.risk_level == "tinggi" and d.rule == "aturan-4" and "2025" in d.headline
+
+
+def test_two_forest_maps_agree_is_deforestation():
+    region = (100, 100, 140, 140)
+    out = pg.compute(_box_for(TX, TY, *region), _loader(_tiles_with(region, loss_b=25, forest=True, natural=region)))
+    assert out["natural_forest_2020"] == 100.0 and out["forest_agree_2020"] == 100.0
+    assert out["loss_after_on_forest"] == 100.0 and out["loss_after_on_forest_both"] == 100.0
+    d = evidence.decide(out, None, 0.0, forest_map="jrc", layer_sources=pg.LAYER_SOURCES)
+    assert d.risk_level == "tinggi" and d.rule == "aturan-4" and any("sepakat" in n for n in d.notes)
+    item = next(i for i in d.items if i.key == "natural_forest_2020")
+    assert item.verdict == "netral" and "SBTN" in item.source
+
+
+def test_only_jrc_says_forest_needs_field_check_not_verdict():
+    """Peta JRC keliru di kebun pohon (galat komisi 18%): tanpa kesepakatan peta kedua, tidak boleh langsung Berisiko."""
+    region = (100, 100, 140, 140)
+    out = pg.compute(_box_for(TX, TY, *region), _loader(_tiles_with(region, loss_b=22, forest=True, natural=())))
+    assert out["tree_cover_2020"] == 100.0 and out["natural_forest_2020"] == 0.0 and out["loss_after_on_forest_both"] == 0.0
+    d = evidence.decide(out, None, 0.0, forest_map="jrc", layer_sources=pg.LAYER_SOURCES)
+    assert d.risk_level == "perlu_cek" and d.rule == "aturan-4-peta-berbeda" and "2022" in d.headline
+    assert demo.scenario_from_layers(out) == "peremajaan_2022"  # deret NDVI simulasi: kebun pohon tua, bukan hutan
+    # hanya separuh kebun yang hutan menurut kedua peta dan hilang: 50% >= ambang -> tetap deforestasi
+    half = pg.compute(_box_for(TX, TY, *region),
+                      _loader(_tiles_with(region, loss_b=22, forest=True, natural=(100, 100, 120, 140))))
+    assert half["loss_after_on_forest_both"] == 50.0
+    assert evidence.decide(half, None, 0.0, forest_map="jrc").rule == "aturan-4"
+
+
+def test_second_map_unreadable_falls_back_to_single_map():
+    region = (100, 100, 140, 140)
+    out = pg.compute(_box_for(TX, TY, *region), _loader(_tiles_with(region, loss_b=25, forest=True)))
+    assert out["natural_forest_2020"] is None and out["loss_after_on_forest_both"] is None
+    d = evidence.decide(out, None, 0.0, forest_map="jrc")
+    assert d.risk_level == "tinggi" and any("satu peta hutan" in n for n in d.notes)
+    assert next(i for i in d.items if i.key == "natural_forest_2020").verdict == "tidak_tersedia"
+
+
+def test_loss_outside_forest_part_is_not_deforestation():
+    """Hutan di separuh barat, kehilangan tutupan di separuh timur: persentase per kebun menipu, per piksel tidak."""
+    tiles = _tiles_with((120, 100, 140, 140), loss_b=23, forest=False, natural=())
+    tiles["jrc"][50:70, 50:60] = (114, 102, 249, 230)  # piksel tile kehilangan 100..120
+    out = pg.compute(_box_for(TX, TY, 100, 100, 140, 140), _loader(tiles))
+    assert out["tree_cover_2020"] == 50.0 and out["disturbance_after_2020"] == 50.0 and out["loss_after_on_forest"] == 0.0
+    d = evidence.decide(out, None, 0.0, forest_map="jrc")
+    assert d.risk_level == "perlu_cek" and d.rule == "aturan-4-di-luar-hutan"
+
+
+def test_only_second_map_says_forest_needs_field_check():
+    region = (100, 100, 140, 140)
+    out = pg.compute(_box_for(TX, TY, *region), _loader(_tiles_with(region, loss_b=24, forest=False, natural=region)))
+    assert out["tree_cover_2020"] == 0.0 and out["loss_after_on_natural"] == 100.0
+    d = evidence.decide(out, None, 0.0, forest_map="jrc")
+    assert d.risk_level == "perlu_cek" and d.rule == "aturan-1-peta-berbeda"
 
 
 def test_loss_on_non_forest_is_replanting_not_deforestation():
@@ -153,6 +216,13 @@ def test_indicator_test_script_logic(monkeypatch):
     assert r["passed"] and r["on"] == [1] and r["risk"] == "tinggi"
     r = uji.evaluate_case("salah harapan", {}, {1}, "rendah", "uji")
     assert not r["passed"]
+    # peta hutan kedua terbaca dan tidak sepakat -> kebun yang sama menjadi perlu cek, bukan berisiko
+    two = {**real, "natural_forest_2020": 0.0, "forest_agree_2020": 0.0, "loss_after_on_forest": 100.0,
+           "loss_after_on_forest_both": 0.0, "loss_after_on_natural": 0.0}
+    monkeypatch.setattr(uji.peta_gfw, "plot_layers", lambda g, p: (dict(two), None))
+    r = uji.evaluate_case("peta berbeda", {}, {1}, "perlu_cek", "uji")
+    assert r["passed"] and r["indicators"]["1"]["natural_forest_2020_pct"] == 0.0
+    monkeypatch.setattr(uji.peta_gfw, "plot_layers", lambda g, p: (dict(real), None))
     monkeypatch.setattr(kawasan, "lookup", lambda g, p: K(100.0, "klhk_gfw" if p == "gfw" else "kemenhut", "Hutan Produksi"))
     r = uji.evaluate_case("kawasan", {}, {1, 2, 3}, "tinggi", "uji")
     assert r["passed"] and r["indicators"]["2"]["pct"] == 100.0

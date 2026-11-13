@@ -15,6 +15,15 @@ Aturan (urutan diterapkan):
   4. Ada tutupan pohon (hutan) dan gangguan sesudah 2020      -> tinggi
   5. Selain itu                                               -> perlu_cek (butuh info)
 Ambang mengikuti default Whisp (10% / 50%).
+
+Dua peta hutan (sejak 14 Nov 2026). Peta hutan JRC keliru menyebut "hutan" pada ~18% kasus, terutama
+di kebun pohon dan agroforestri (Bourgoin dkk., ESSD 2026). Karena itu aturan 4 dan aturan 1 dicek ulang
+per piksel dengan peta hutan kedua (hutan alam SBTN, dipakai juga oleh GFW Pro dan Koltiva):
+  4.  JRC dan SBTN sepakat: piksel hutan yang hilang sesudah 2020 >= 10% kebun -> tinggi
+  4b. hanya satu peta yang menyebut piksel itu hutan                           -> perlu_cek (wajib cek lapangan)
+  4c. kehilangan tutupan jatuh di luar bagian kebun yang berhutan              -> perlu_cek
+  1b. JRC: bukan hutan, tetapi SBTN: hutan alam yang hilang sesudah 2020       -> perlu_cek
+Bila peta kedua tidak terbaca, aturan lama (satu peta) tetap berlaku dan paspor mencatatnya.
 Setelah aturan 1-5: hasil "rendah" diturunkan menjadi perlu_cek bila fungsi kawasan tidak
 terbaca, atau (mode live) bila status kawasan belum bisa dicek ke peta resmi.
 """
@@ -33,6 +42,7 @@ T_PROTECTED = 5.0
 
 LAYER_SOURCES = {
     "tree_cover_2020": "JRC Global Forest Cover 2020 (akurasi keseluruhan 91%)",
+    "natural_forest_2020": "SBTN Natural Lands Map v1.1, kelas hutan alam (WRI/SBTN)",
     "commodity_2020": "Peta probabilitas sawit Forest Data Partnership / Descals et al. 2021",
     "disturbance_before_2021": "Hansen Global Forest Change (kehilangan tutupan 2001-2020)",
     "disturbance_after_2020": "Hansen GFC 2021-2025 + peringatan RADD Sentinel-1",
@@ -44,6 +54,10 @@ NOTE_KONSERVASI = ("Kawasan konservasi dan hutan lindung umumnya tidak bisa dile
                    "sebelum TBS dijual ke rantai pasok ekspor.")
 NOTE_PRODUKSI = ("Kebun di hutan produksi perlu diselesaikan dulu, misalnya lewat pelepasan kawasan/TORA, perhutanan sosial, "
                  "atau mekanisme keterlanjuran UU Cipta Kerja Pasal 110A/110B. Arahkan petani ke pendamping atau KPH setempat.")
+NOTE_DUA_PETA = ("Peta hutan JRC keliru menyebut hutan pada sekitar 18% kasus, terutama di kebun pohon (karet, sawit tua, "
+                 "agroforestri), jadi satu peta tidak cukup untuk memvonis. Kebun ini otomatis masuk sampel verifikasi: "
+                 "verifikator memeriksa tunggul, umur tanaman, dan foto geotag di lapangan. Hutan tanaman tetap "
+                 "terhitung hutan menurut EUDR, jadi hasilnya belum Aman sebelum dicek.")
 NOTE_BUKTI = ("Peta resmi bisa tertinggal dari SK pelepasan terbaru. Bila petani punya sertifikat atau SK pelepasan kawasan, "
               "lampirkan untuk verifikasi manual.")
 
@@ -147,6 +161,22 @@ def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_p
              if jrc else "Tutupan pohon belum tentu hutan: kebun sawit tua juga terbaca sebagai pohon."),
         )
     )
+    nat = layers.get("natural_forest_2020")
+    if "natural_forest_2020" in layers:
+        agree = layers.get("forest_agree_2020")
+        val = _pct(nat)
+        if nat is not None and tree is not None and agree is not None and (nat > T_TREE or tree > T_TREE):
+            val += (f" (sepakat dengan peta JRC di {dec(agree, 0)}% kebun)" if agree > T_TREE else
+                    " (tidak sepakat dengan peta JRC)")
+        items.append(
+            EvidenceItem(
+                "natural_forest_2020", "Hutan alam 2020 (peta kedua, SBTN)", val,
+                "tidak_tersedia" if nat is None else ("netral" if nat > T_TREE else "mendukung_aman"),
+                src["natural_forest_2020"],
+                "Pendapat pembanding untuk peta JRC: peta ini memisahkan hutan alam dari kebun pohon, hutan tanaman, dan "
+                "pohon di lahan pertanian. Kebun divonis Berisiko hanya bila kedua peta sepakat.",
+            )
+        )
     items.append(
         EvidenceItem(
             "commodity_2020", "Sudah kebun sawit pada 2020", _pct(com),
@@ -209,7 +239,7 @@ def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_p
                             0.95 if kw.get("checked") or kw.get("source") == "ilustrasi" else 0.8, items, notes)
 
     r = _satellite_rules(items, tree, com, before, after, ts, clearing_after, clearing_before, ts_ok, jrc,
-                         layers.get("loss_after_main_year"))
+                         layers.get("loss_after_main_year"), layers)
     if 0 < protected_pct <= T_PROTECTED:
         r.notes.append(f"{dec(protected_pct, 1)}% kebun bersinggungan dengan batas kawasan hutan. Selisih sekecil ini bisa "
                        "berasal dari ketelitian peta; pastikan patok batas di lapangan.")
@@ -228,8 +258,13 @@ def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_p
 
 
 def _satellite_rules(items, tree, com, before, after, ts, clearing_after, clearing_before, ts_ok, jrc=False,
-                     loss_year=None) -> RiskDecision:
+                     loss_year=None, layers: dict | None = None) -> RiskDecision:
     notes: list[str] = []
+    layers = layers or {}
+    nat = layers.get("natural_forest_2020")          # peta hutan kedua (None = tidak terbaca)
+    on_jrc = layers.get("loss_after_on_forest")       # % kebun: hutan JRC yang hilang sesudah 2020
+    on_both = layers.get("loss_after_on_forest_both")  # % kebun: hutan menurut KEDUA peta yang hilang sesudah 2020
+    on_nat = layers.get("loss_after_on_natural")      # % kebun: hutan alam SBTN yang hilang sesudah 2020
     forest_2020 = tree is not None and tree > T_TREE
     if tree is None:
         notes.append("Lapisan tutupan pohon 2020 tidak tersedia; keputusan bersandar pada time series.")
@@ -242,6 +277,13 @@ def _satellite_rules(items, tree, com, before, after, ts, clearing_after, cleari
 
     replant = post_layer or bool(clearing_after)
     if not forest_2020:
+        if jrc and post_layer and on_nat is not None and on_nat >= T_DIST_AFTER:
+            yr = loss_year or "setelah 2020"
+            notes.append(f"Dua peta hutan tidak sepakat: peta JRC menyebut lahan ini bukan hutan pada 2020, tetapi peta hutan "
+                         f"alam SBTN menyebut {dec(on_nat, 0)}% kebun adalah hutan alam yang hilang {yr}.")
+            notes.append(NOTE_DUA_PETA)
+            return RiskDecision("perlu_cek", f"Perlu cek: dua peta hutan tidak sepakat soal lahan yang dibuka {yr}",
+                                "aturan-1-peta-berbeda", 0.5, items, notes)
         if jrc and post_layer:
             yr = loss_year or (clearing_after[-1].date[:4] if clearing_after else "setelah 2020")
             notes.append(f"Peta GFW mencatat kehilangan tutupan pohon {yr} di {dec(after, 0)}% kebun, tetapi peta hutan JRC "
@@ -276,12 +318,34 @@ def _satellite_rules(items, tree, com, before, after, ts, clearing_after, cleari
                          "belum bisa dibedakan. Aktifkan lapisan sawit (Earth Engine/Whisp) atau cek lapangan.")
             return RiskDecision("perlu_cek", "Perlu cek: ada pembukaan lahan setelah 2020, jenis tutupan sebelumnya belum pasti",
                                 "aturan-4-tanpa-komoditas", 0.5, items, notes)
+    if jrc and post_layer and on_jrc is not None and on_jrc < T_DIST_AFTER:
+        yr = loss_year or "setelah 2020"
+        notes.append(f"Kehilangan tutupan pohon {yr} ({dec(after, 0)}% kebun) jatuh di bagian kebun yang bukan hutan pada 2020; "
+                     f"bagian yang berhutan menurut peta JRC ({dec(tree, 0)}% kebun) tidak ikut hilang. Kehilangan itu bukan "
+                     "deforestasi, tetapi sisa hutan di dalam batas kebun perlu dicek di lapangan.")
+        return RiskDecision("perlu_cek", "Perlu cek: ada sisa hutan di dalam batas kebun; kehilangan tutupan terjadi di luar hutan",
+                            "aturan-4-di-luar-hutan", 0.55, items, notes, is_replanting=True)
+    if jrc and post_layer and nat is not None and (on_both or 0.0) < T_DIST_AFTER:
+        yr = loss_year or "setelah 2020"
+        notes.append(f"Dua peta hutan tidak sepakat: peta JRC menyebut {dec(tree, 0)}% kebun hutan pada 2020, tetapi peta hutan "
+                     f"alam SBTN menyebut {dec(nat, 0)}%. Bagian kebun yang hilang {yr} dan terhitung hutan menurut kedua "
+                     f"peta hanya {dec(on_both or 0.0, 0)}% (ambang {dec(T_DIST_AFTER, 0)}%). Kemungkinan yang ditebang adalah "
+                     "kebun pohon tua (karet, sawit) atau hutan tanaman, bukan hutan alam.")
+        notes.append(NOTE_DUA_PETA)
+        return RiskDecision("perlu_cek", f"Perlu cek: dua peta hutan tidak sepakat soal lahan yang dibuka {yr}",
+                            "aturan-4-peta-berbeda", 0.5, items, notes)
     if n_post > 0:
         conf = 0.6 + 0.35 * (n_post / max(n_avail, 1))
         when = bulan(clearing_after[-1].date) if clearing_after else (loss_year or "setelah 2020")
-        if jrc and post_layer:
+        if jrc and post_layer and nat is not None:
+            notes.append(f"Dua peta hutan independen sepakat: {dec(on_both or 0.0, 0)}% kebun adalah hutan pada 2020 menurut "
+                         f"peta JRC (acuan UE) dan peta hutan alam SBTN, lalu hilang {loss_year or 'sesudah 2020'} menurut "
+                         "Hansen/GFW. Bila petani punya bukti kebun sudah ditanam sebelum 2021, ajukan keberatan dengan "
+                         "foto dan dokumen.")
+        elif jrc and post_layer:
             notes.append(f"Peta hutan JRC: {dec(tree, 0)}% kebun masih hutan pada 2020; peta Hansen: {dec(after, 0)}% "
-                         "kehilangan tutupan sesudah 2020. Bila petani punya bukti kebun sudah ditanam sebelum 2021 "
+                         "kehilangan tutupan sesudah 2020. Peta hutan kedua (SBTN) tidak terbaca, jadi keputusan ini "
+                         "bersandar pada satu peta hutan. Bila petani punya bukti kebun sudah ditanam sebelum 2021 "
                          "(peta JRC bisa keliru di kebun tua), ajukan keberatan dengan foto dan dokumen.")
         return RiskDecision("tinggi", f"Berisiko: hutan dibuka {when}, setelah batas EUDR", "aturan-4",
                             round(conf, 2), items, notes + [f"{n_post} dari {n_avail} sumber bukti menunjukkan pembukaan hutan setelah 2020."])
@@ -289,6 +353,10 @@ def _satellite_rules(items, tree, com, before, after, ts, clearing_after, cleari
         notes.append(f"Peta hutan JRC menyebut {dec(tree, 0)}% kebun masih hutan pada 2020 dan tidak ada kehilangan tutupan "
                      "sesudahnya. Bisa jadi memang hutan (belum ditanami), atau kebun sawit tua yang rapat dan salah "
                      "terbaca sebagai hutan. Perlu verifikasi lapangan (foto geotag) atau citra resolusi tinggi.")
+        if nat is not None:
+            notes.append(f"Peta hutan kedua (hutan alam SBTN) menyebut {dec(nat, 0)}% kebun hutan alam: "
+                         + ("kedua peta sepakat lahan ini masih berhutan pada 2020." if nat > T_TREE else
+                            "peta ini tidak melihat hutan alam, jadi kemungkinan kebun pohon tua yang salah terbaca di peta JRC."))
     else:
         notes.append("Ada tutupan pohon pada 2020 tetapi tidak ada bukti sawit maupun pembukaan lahan. Perlu verifikasi lapangan (foto geotag) atau citra resolusi tinggi.")
     return RiskDecision("perlu_cek", "Perlu cek: bukti satelit belum cukup untuk memutuskan", "aturan-5", 0.5, items, notes)

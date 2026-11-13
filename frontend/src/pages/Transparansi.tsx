@@ -14,7 +14,8 @@ function indicatorText(t: IndicatorTest, k: string): string {
   const i = t.indicators;
   if (k === "1" && i["1"]) {
     const yrs = Object.entries(i["1"].by_year).map(([y, v]) => `${y}: ${Math.round(v)}%`).join(", ");
-    return `${Math.round(i["1"].loss_after_pct)}% hilang${yrs ? ` (${yrs})` : ""}; hutan JRC 2020 ${Math.round(i["1"].forest_2020_pct)}%`;
+    const nat = i["1"].natural_forest_2020_pct;
+    return `${Math.round(i["1"].loss_after_pct)}% hilang${yrs ? ` (${yrs})` : ""}; hutan JRC 2020 ${Math.round(i["1"].forest_2020_pct)}%; hutan alam SBTN ${nat == null ? "tidak terbaca" : `${Math.round(nat)}%`}`;
   }
   if (k === "2" && i["2"]) return `${Math.round(i["2"].pct)}% · ${i["2"].label}`;
   if (k === "3" && i["3"]) return `${Math.round(i["3"].pct)}% · ${i["3"].label}`;
@@ -44,9 +45,10 @@ function IndicatorTestPanel() {
         </button>
       </div>
       <p className="small muted" style={{ marginBottom: 10 }}>
-        Lima kebun uji dengan lokasi nyata, masing-masing sengaja melanggar (atau tidak melanggar) indikator tertentu. Uji membaca peta
+        Enam kebun uji dengan lokasi nyata, masing-masing sengaja melanggar (atau tidak melanggar) indikator tertentu. Uji membaca peta
         online saat ini juga, lalu membandingkan indikator yang menyala dan keputusan akhir dengan harapan. Perhatikan kebun peremajaan:
-        indikator kehilangan tutupan menyala, tetapi keputusannya tetap aman karena lahannya bukan hutan pada 2020.
+        indikator kehilangan tutupan menyala, tetapi keputusannya tetap aman karena lahannya bukan hutan pada 2020. Kebun Hasan menunjukkan
+        guna peta hutan kedua: peta JRC menyebutnya hutan, peta hutan alam SBTN tidak, sehingga hasilnya perlu cek lapangan, bukan langsung berisiko.
       </p>
       {err && <Notice kind="danger">{err}</Notice>}
       {res && (
@@ -129,9 +131,10 @@ const MODELS = [
     name: "Mesin keputusan multi-bukti",
     rows: [
       ["Fungsinya", "Menggabungkan beberapa sumber bukti menjadi status Aman, Perlu cek, atau Berisiko beserta alasannya."],
-      ["Data", "Peta tutupan hutan 2020 JRC (akurasi 91%), kehilangan tutupan Hansen/GLAD, peringatan radar RADD (user's accuracy 97,6%), peta sawit Forest Data Partnership/Descals, peta Kawasan Hutan Kementerian Kehutanan, dan time series di atas."],
+      ["Data", "Dua peta hutan 2020: JRC GFC2020 (acuan UE, akurasi 91%) dan hutan alam SBTN Natural Lands Map (WRI/SBTN); kehilangan tutupan Hansen/GLAD, peringatan radar RADD (user's accuracy 97,6%), peta sawit Forest Data Partnership/Descals, peta Kawasan Hutan Kementerian Kehutanan, dan time series di atas."],
       ["Cek kawasan otomatis", "Saat kebun digambar, aplikasi menanyakan poligon kawasan hutan di lokasi itu ke layanan peta resmi Kemenhut, membaca fungsinya (konservasi, hutan lindung, hutan produksi, APL), lalu menghitung persentase luas kebun di tiap fungsi. Layanan Kemenhut terbaru (revisi Juni 2026) hanya mengizinkan tampilan peta, jadi aplikasi membaca gambarnya: setiap fungsi kawasan punya warna tetap di legenda resmi (kuning = hutan produksi tetap, ungu = konservasi, putih = APL, dan seterusnya), lalu setiap piksel di bawah kebun dicocokkan ke warna itu. Ini aturan pasti, bukan model AI, karena warnanya ditetapkan oleh pemilik peta. Bila server Kemenhut tidak terjangkau, aplikasi otomatis memakai Peta Kawasan Hutan KLHK 2017 yang disediakan Global Forest Watch, dan paspor menyebut sumber mana yang dipakai. Hasilnya disimpan di cache agar tetap jalan saat offline. Kebun yang lebih dari 5% masuk kawasan hutan langsung berstatus Berisiko. Tidak ada batas kawasan yang digambar tangan."],
-      ["Bukti deforestasi", "Lapisan 'Kehilangan tutupan pohon' di peta (Hansen/GLAD lewat Global Forest Watch) dibaca per piksel di dalam batas kebun, bersama peta hutan JRC 2020 yang dipakai Uni Eropa. Kehilangan tutupan pohon belum tentu deforestasi: peremajaan atau panen kebun juga tercatat. Karena itu kebun baru berstatus Berisiko bila tutupan hilang sesudah 2020 DAN lahannya masih hutan pada 2020 menurut JRC; bila bukan hutan, statusnya Aman (peremajaan)."],
+      ["Bukti deforestasi", "Lapisan 'Kehilangan tutupan pohon' di peta (Hansen/GLAD lewat Global Forest Watch) dibaca per piksel di dalam batas kebun, bersama peta hutan JRC 2020 yang dipakai Uni Eropa. Kehilangan tutupan pohon belum tentu deforestasi: peremajaan atau panen kebun juga tercatat. Karena itu kebun baru berstatus Berisiko bila tutupan hilang sesudah 2020 DAN lahannya masih hutan pada 2020; bila bukan hutan, statusnya Aman (peremajaan)."],
+      ["Dua peta hutan", "Makalah resmi peta JRC (Bourgoin dkk., ESSD 2026) mencatat peta itu keliru menyebut 'hutan' pada sekitar 18% kasus, terutama di kebun pohon dan agroforestri seperti karet dan sawit tua, dan menyarankan peta itu dipasangkan dengan data lain. Maka setiap piksel yang hilang dicek ke peta kedua, kelas hutan alam SBTN Natural Lands Map (peta yang juga dipakai GFW Pro dan Koltiva). Berisiko hanya bila kedua peta sepakat piksel itu hutan di minimal 10% luas kebun. Bila hanya satu peta yang menyebut hutan, hasilnya Perlu cek dan kebun wajib masuk sampel inspeksi lapangan; tidak otomatis Aman karena hutan tanaman tetap terhitung hutan menurut EUDR. Bila peta kedua tidak terbaca, paspor mencatat bahwa keputusan memakai satu peta."],
       ["Algoritma", "Aturan 'convergence of evidence' dari Whisp (FAO), ditambah pembeda peremajaan dan deforestasi: lahan yang tahun 2020 sudah kebun sawit lalu dibuka lagi adalah peremajaan (mis. PSR), bukan deforestasi."],
       ["Transparansi", "Aturannya terbuka di kode (evidence.py). Setiap paspor menampilkan bukti, sumber, dan tingkat keyakinan."],
       ["Batasannya", "Peta global kurang tajam untuk kebun di bawah 1 ha. Peta kawasan hutan berskala kecil dan bisa tertinggal dari SK pelepasan terbaru, jadi status 'masuk kawasan' adalah sinyal untuk diverifikasi (sertifikat, SK pelepasan), bukan vonis."],
@@ -169,7 +172,7 @@ export default function Transparansi() {
           <strong>
             {meta.satellite_mode === "live"
               ? "live (Sentinel-2 dan Hansen asli)"
-              : "demo: hutan 2020 (JRC) dan kehilangan tutupan (Hansen) dari peta nyata GFW, deret NDVI simulasi berlabel"}
+              : "demo: dua peta hutan 2020 (JRC dan SBTN) dan kehilangan tutupan (Hansen) dari peta nyata GFW, deret NDVI simulasi berlabel"}
           </strong>
           .
           AI batas kebun: <strong>{meta.sam.available ? "Segment Anything" : "watershed bawaan"}</strong>
@@ -218,6 +221,12 @@ export default function Transparansi() {
             <li>Pabrik hanya melihat status bukti lahan, bukan salinan dokumen; dokumen tetap di koperasi.</li>
             <li>Data tersimpan di server koperasi sendiri (SQLite), bukan di layanan pihak ketiga.</li>
             <li>Pemindaian QR dengan kamera diproses di browser; gambar kamera tidak dikirim ke server.</li>
+            <li>
+              Status dari komputer bukan vonis: kebun baru disebut Berisiko bila dua peta hutan sepakat, petani bisa mengajukan keberatan,
+              dan yang memutus adalah verifikator. Penilaian dampak pelindungan data (UU PDP Pasal 34) dan kebijakan privasi, termasuk
+              kekurangan yang belum selesai, ada di <span className="num">docs/DPIA.md</span> dan{" "}
+              <span className="num">docs/KEBIJAKAN_PRIVASI.md</span>.
+            </li>
           </ul>
         </section>
         <section className="panel panel-pad">

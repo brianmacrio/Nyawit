@@ -75,8 +75,9 @@ KAWASAN_GFW_URL = _env(
 )
 
 # Lapisan bukti deforestasi NYATA untuk mode demo (tanpa rasterio/Earth Engine): tile raster publik GFW
-# - Hansen GFC (kehilangan tutupan pohon per tahun, dikodekan di kanal biru) dan
-# - JRC Global Forest Cover 2020 (peta hutan acuan UE untuk EUDR).
+# - Hansen GFC (kehilangan tutupan pohon per tahun, dikodekan di kanal biru),
+# - JRC Global Forest Cover 2020 (peta hutan acuan UE untuk EUDR), dan
+# - hutan alam SBTN Natural Lands Map 2020 (peta hutan kedua).
 PETA_GFW = _env("PK_PETA_GFW", "1") not in ("0", "false", "no")
 PETA_LOSS_URL = _env(
     "PK_PETA_LOSS_URL",
@@ -85,6 +86,12 @@ PETA_LOSS_URL = _env(
 )
 PETA_JRC_URL = _env(
     "PK_PETA_JRC_URL", "https://tiles.globalforestwatch.org/jrc_global_forest_cover/v2020.3/default/{z}/{x}/{y}.png"
+)
+# Peta hutan KEDUA (pendapat pembanding untuk JRC): kelas hutan alam SBTN Natural Lands Map v1.1 (WRI/SBTN).
+# Peta JRC keliru menyebut hutan pada ~18% kasus, terutama di kebun pohon; vonis Berisiko butuh dua peta sepakat.
+PETA_SBTN_URL = _env(
+    "PK_PETA_SBTN_URL",
+    "https://tiles.globalforestwatch.org/sbtn_natural_forests_map/v202504/natural_forest/{z}/{x}/{y}.png",
 )
 
 CORS_ORIGINS = [o.strip() for o in _env("PK_CORS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()]

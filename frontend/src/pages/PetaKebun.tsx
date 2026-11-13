@@ -24,7 +24,7 @@ import type {
   SideType,
   StdbStatus,
 } from "../lib/types";
-import { BaseLayers, JRC_OVERLAY, LOSS_OVERLAY, OVERLAY_EVENT } from "../components/MapBase";
+import { BaseLayers, JRC_OVERLAY, LOSS_OVERLAY, OVERLAY_EVENT, SBTN_OVERLAY } from "../components/MapBase";
 import { useKawasanLayerStatus } from "../components/KawasanLayer";
 import { useGfwStatus } from "../components/GfwKawasanLayer";
 import { PassportPanel } from "../components/PassportPanel";
@@ -506,11 +506,14 @@ export default function PetaKebun() {
         {overlays[JRC_OVERLAY] && (
           <div className="legend-row"><i className="swatch" style={{ borderColor: "#7266f9", background: "#7266f999" }} /> Hutan 2020 (JRC)</div>
         )}
+        {overlays[SBTN_OVERLAY] && (
+          <div className="legend-row"><i className="swatch" style={{ borderColor: "#2c6639", background: "#2c663999" }} /> Hutan alam 2020 (SBTN)</div>
+        )}
         {overlays[LOSS_OVERLAY] && (
           <>
             <div className="legend-row"><i className="swatch" style={{ borderColor: "#e3528c", background: "#e3528ccc" }} /> Tutupan pohon hilang 2021–2025</div>
             <div className="legend-row faint small" style={{ maxWidth: 230 }}>
-              Belum tentu deforestasi: peremajaan sawit juga tercatat. Berisiko bila lahannya masih hutan pada 2020 (JRC).
+              Belum tentu deforestasi: peremajaan sawit juga tercatat. Berisiko bila lahannya hutan pada 2020 menurut dua peta (JRC dan SBTN).
             </div>
           </>
         )}
@@ -909,7 +912,7 @@ function NewPlotForm({
               {SCENARIOS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
             <span className="small faint">
-              Status Aman/Berisiko diputuskan dari peta nyata (hutan JRC 2020, kehilangan tutupan GFW, peta kawasan). Pilihan ini hanya
+              Status Aman/Berisiko diputuskan dari peta nyata (dua peta hutan 2020, kehilangan tutupan GFW, peta kawasan). Pilihan ini hanya
               mengubah grafik NDVI simulasi; bila bertentangan dengan peta, paspor memberi peringatan.
             </span>
           </label>
@@ -917,8 +920,8 @@ function NewPlotForm({
         <label className="check">
           <input type="checkbox" checked={form.consent} onChange={(e) => set("consent", e.target.checked)} />
           <span>
-            Petani setuju lokasi dan batas kebunnya dipakai untuk paspor kebun dan hanya dibagikan ke pembeli yang ia pilih. Tidak ada NIK
-            atau foto KTP yang disimpan.
+            Petani setuju nama, lokasi, dan batas kebunnya dicatat untuk paspor kebun. Pembeli di luar negeri hanya menerima batas kebun
+            dan kode paspor, tanpa nama. Tidak ada NIK atau foto KTP yang disimpan.
           </span>
         </label>
         {err && <Notice kind="danger">{err}</Notice>}

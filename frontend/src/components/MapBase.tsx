@@ -4,6 +4,7 @@ import { GfwKawasanOverlay } from "./GfwKawasanLayer";
 
 export const LOSS_OVERLAY = "Kehilangan tutupan pohon 2021–2025 (GFW)";
 export const JRC_OVERLAY = "Hutan 2020 (JRC, acuan Uni Eropa)";
+export const SBTN_OVERLAY = "Hutan alam 2020 (SBTN, peta kedua)";
 export const OVERLAY_EVENT = "pk-overlay";
 
 /** Memberi tahu halaman (legenda) lapisan mana yang sedang dicentang di kontrol lapisan. */
@@ -17,8 +18,8 @@ function OverlayWatcher() {
 }
 
 /**
- * Citra satelit asli (Esri World Imagery) + lapisan kehilangan tutupan pohon 2021-2025
- * dan peta hutan JRC 2020, keduanya dari Global Forest Watch (data Hansen/UMD asli) + peta Kawasan Hutan Kemenhut (dimuat browser)
+ * Citra satelit asli (Esri World Imagery) + lapisan kehilangan tutupan pohon 2021-2025, peta hutan JRC 2020,
+ * dan peta hutan alam SBTN 2020 (peta hutan kedua), semuanya dari Global Forest Watch + peta Kawasan Hutan Kemenhut (dimuat browser)
  * + Peta Kawasan Hutan KLHK 2017 yang diambil otomatis lewat backend dari Global Forest Watch.
  */
 export function BaseLayers({
@@ -47,6 +48,15 @@ export function BaseLayers({
         <TileLayer
           url="https://tiles.globalforestwatch.org/jrc_global_forest_cover/v2020.3/default/{z}/{x}/{y}.png"
           attribution="EC JRC Global Forest Cover 2020 via Global Forest Watch"
+          opacity={0.6}
+          maxNativeZoom={14}
+          maxZoom={20}
+        />
+      </LayersControl.Overlay>
+      <LayersControl.Overlay name={SBTN_OVERLAY}>
+        <TileLayer
+          url="https://tiles.globalforestwatch.org/sbtn_natural_forests_map/v202504/natural_forest/{z}/{x}/{y}.png"
+          attribution="SBTN Natural Lands Map v1.1 (WRI/SBTN) via Global Forest Watch"
           opacity={0.6}
           maxNativeZoom={14}
           maxZoom={20}

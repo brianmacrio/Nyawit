@@ -98,7 +98,12 @@ def scenario_from_layers(layers: dict, kawasan_pct: float = 0.0, t_tree: float =
     if kawasan_pct > 5.0:
         return "kawasan_hutan"
     if after >= t_after and 2021 <= y_after <= 2025:
-        return f"{'hutan_dibuka' if tree > t_tree else 'peremajaan'}_{y_after}"
+        # hutan yang hilang (per piksel; bila ada peta kedua, harus hutan menurut KEDUA peta) vs kebun pohon yang diremajakan
+        on = layers.get("loss_after_on_forest_both")
+        if on is None:
+            on = layers.get("loss_after_on_forest")
+        forest_cleared = on >= t_after if on is not None else tree > t_tree
+        return f"{'hutan_dibuka' if forest_cleared else 'peremajaan'}_{y_after}"
     if before >= t_before and 2019 <= y_before <= 2020:  # deret NDVI mulai 2018
         return f"dibuka_{y_before}"
     if tree > t_tree:

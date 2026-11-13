@@ -4,7 +4,8 @@
     .venv\\Scripts\\python -m app.scripts.uji_indikator
 
 Indikator yang diuji (sama dengan lapisan di Peta Kebun):
-  1. Kehilangan tutupan pohon 2021-2025 (Hansen/GFW), dibaca bersama peta hutan JRC 2020
+  1. Kehilangan tutupan pohon 2021-2025 (Hansen/GFW), dibaca bersama DUA peta hutan 2020:
+     JRC GFC2020 (acuan UE) dan hutan alam SBTN (peta kedua). Berisiko hanya bila keduanya sepakat.
   2. Kawasan hutan KLHK 2017 (Global Forest Watch)
   3. Kawasan hutan peta Kemenhut terbaru (dibaca dari gambar peta resmi)
 
@@ -44,6 +45,11 @@ CASES = [
      _ring([[102.055021, -0.368102], [102.053734, -0.368085], [102.05366, -0.367036], [102.055018, -0.367051],
             [102.055021, -0.368102]]),
      {2, 3}, "tinggi", "di dalam kawasan hutan menurut peta 2017 dan peta terbaru: masalah legalitas"),
+    ("Hasan Siregar (dua peta hutan tidak sepakat)",
+     _ring([[102.088109, -0.432384], [102.087075, -0.432463], [102.08703, -0.431297], [102.088127, -0.431344],
+            [102.088109, -0.432384]]),
+     {1}, "perlu_cek", "hutan menurut JRC yang hilang 2021-2022, tetapi bukan hutan alam menurut SBTN: wajib cek lapangan, "
+                       "bukan langsung berisiko"),
     ("Kebun uji di TN Tesso Nilo", _sq(102.04, -0.305), {2, 3}, "tinggi",
      "di dalam kawasan konservasi menurut kedua peta"),
     ("Budi Santoso (kebun aman)",
@@ -69,7 +75,8 @@ def evaluate_case(name: str, geom: dict, expect_on: set[int], expect_risk: str, 
         if after >= evidence.T_DIST_AFTER:
             on.add(1)
         res["indicators"]["1"] = {"on": 1 in on, "loss_after_pct": after, "by_year": layers["loss_after_by_year"],
-                                  "forest_2020_pct": tree}
+                                  "forest_2020_pct": tree, "natural_forest_2020_pct": layers.get("natural_forest_2020"),
+                                  "loss_on_forest_both_pct": layers.get("loss_after_on_forest_both")}
     if not k17.checked or k17.source != "klhk_gfw":
         res["errors"].append("[2] peta KLHK 2017 tidak terbaca: " + "; ".join(k17.warnings)[:160])
     else:
@@ -105,8 +112,10 @@ def run() -> int:
               f"({r['why']})")
         i = r["indicators"]
         if "1" in i:
+            nat = i["1"]["natural_forest_2020_pct"]
             print(f"  [1] kehilangan tutupan 2021-2025: {i['1']['loss_after_pct']:.0f}% {i['1']['by_year'] or ''} | "
-                  f"hutan JRC 2020: {i['1']['forest_2020_pct']:.0f}%")
+                  f"hutan JRC 2020: {i['1']['forest_2020_pct']:.0f}% | hutan alam SBTN 2020: "
+                  + ("tidak terbaca" if nat is None else f"{nat:.0f}%"))
         if "2" in i:
             print(f"  [2] KLHK 2017: {i['2']['pct']:.0f}% kawasan ({i['2']['label']})")
         if "3" in i:

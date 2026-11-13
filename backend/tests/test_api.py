@@ -54,6 +54,11 @@ def test_auth_and_csrf(c):
     assert h["x-content-type-options"] == "nosniff" and "frame-ancestors 'none'" in h["content-security-policy"]
 
 
+def test_unknown_api_path_is_json_404_not_spa(c):
+    r = c.get("/api/alamat-yang-tidak-ada")
+    assert r.status_code == 404 and "html" not in r.headers.get("content-type", "")
+
+
 def test_role_enforced(c):
     as_(c, "pengepul")
     g = sq(102.095, -0.345)  # APL menurut salinan peta KLHK 2017 di area demo
@@ -194,9 +199,25 @@ def test_shipment_package(c):
     assert sm["n_included"] > 0 and sm["n_excluded"] > 0 and sm["included_kg"] > 0
     assert all(not e["failed_checks"] for e in s["plots"]) and all(e["failed_checks"] for e in s["excluded"])
     z = zipfile.ZipFile(io.BytesIO(c.get(f"/api/shipments/{s['id']}/package.zip").content))
-    assert {"README.txt", "geolokasi_kebun.geojson", "ringkasan_kebun.csv", "kebun_dikeluarkan.csv"} <= set(z.namelist())
+    assert {"README.txt", "geolokasi_kebun.geojson", "traces_unggah.geojson", "ringkasan_kebun.csv",
+            "kebun_dikeluarkan.csv"} <= set(z.namelist())
     gj = z.read("geolokasi_kebun.geojson").decode()
     assert "Budi" not in gj and '"DeforestationFree": true' in gj
+    # format TRACES: 6 desimal, lolos pemeriksaan, berkas unggah hanya memuat properti yang dikenal spesifikasi
+    import json
+
+    from app.services import traces
+
+    assert s["traces"]["ok"] and s["traces"]["features"] == sm["n_included"] and not s["traces"]["problems"]
+    fc = json.loads(gj)
+    assert traces.validate_collection(fc)["ok"]
+    assert all(len(repr(v).split(".")[1]) <= 6 for f in fc["features"] for pt in f["geometry"]["coordinates"][0] for v in pt)
+    up = json.loads(z.read("traces_unggah.geojson"))
+    assert len(up["features"]) == sm["n_included"]
+    assert all(set(f["properties"]) == {"ProducerCountry", "ProductionPlace", "Area"} for f in up["features"])
+    assert "LOLOS" in z.read("README.txt").decode()
+    one = c.get(f"/api/plots/{s['plots'][0]['plot_id']}/eudr.geojson").json()
+    assert traces.validate_collection(one)["ok"]
 
 
 def test_audit_chain_detects_tampering(c):
@@ -264,6 +285,18 @@ def test_demo_plots_violate_each_map_indicator(c):
 
     a, _ = detail("Darmawan Lubis")
     assert a["risk_level"] == "perlu_cek" and a["evidence"]["rule"] == "aturan-5"
+
+    # Joko: dua peta hutan (JRC dan hutan alam SBTN) sepakat -> tetap berisiko
+    a, items = detail("Joko Susilo")
+    assert a["evidence"]["layers"]["loss_after_on_forest_both"] > 90 and items["natural_forest_2020"]["verdict"] == "netral"
+    # Hasan: hanya peta JRC yang menyebut hutan (kebun pohon tua) -> perlu cek lapangan, bukan vonis berisiko
+    a, items = detail("Hasan Siregar")
+    L = a["evidence"]["layers"]
+    assert L["tree_cover_2020"] > 90 and L["natural_forest_2020"] == 0 and L["loss_after_on_forest"] > 50
+    assert a["risk_level"] == "perlu_cek" and a["evidence"]["rule"] == "aturan-4-peta-berbeda"
+    assert items["natural_forest_2020"]["verdict"] == "mendukung_aman"
+    reasons = {i["farmer"]: i["reason"] for i in c.get("/api/inspections").json()["items"]}
+    assert reasons.get("Hasan Siregar") == "peta_berbeda"  # wajib masuk sampel inspeksi lapangan
 
     seeded = [p for p in by_name.values() if p["code"].startswith("PK-000")]
     replant = [p for p in seeded if "peremajaan" in (p["risk_headline"] or "")]

@@ -11,6 +11,11 @@ Sumber (tanpa akun/kunci API, cukup Pillow + shapely, tanpa rasterio):
 * JRC Global Forest Cover 2020 (versi 2020.3): peta hutan acuan Komisi Eropa untuk EUDR. Piksel
   hutan = buram (alfa > 127). Peta ini SENGAJA tidak menghitung kebun sawit/karet sebagai hutan,
   berbeda dengan "tutupan pohon" Hansen yang juga menangkap sawit tua.
+* SBTN Natural Lands Map v1.1 (WRI/SBTN, 30 m), kelas hutan alam 2020: peta hutan KEDUA. Makalah
+  resmi JRC (Bourgoin dkk., ESSD 2026) mencatat galat komisi kelas hutan 18%, terutama di kebun
+  pohon dan agroforestri, dan menyarankan peta itu dipasangkan dengan data lain. Karena itu
+  kebun baru divonis Berisiko bila KEDUA peta sepakat bahwa piksel yang hilang adalah hutan.
+  Bila peta kedua tidak terbaca, hitungan tetap jalan dengan satu peta (nilainya None).
 
 Zoom 14: piksel ~4,8 m (tile kehilangan 512 px) dan ~9,6 m (tile JRC 256 px). Data aslinya
 30 m (Hansen) dan 10 m (JRC), jadi tile ini tidak menambah detail, hanya cukup halus untuk kebun
@@ -37,7 +42,7 @@ from typing import Any
 
 import numpy as np
 
-from ...config import PETA_GFW, PETA_JRC_URL, PETA_LOSS_URL, TS_CACHE_DIR
+from ...config import PETA_GFW, PETA_JRC_URL, PETA_LOSS_URL, PETA_SBTN_URL, TS_CACHE_DIR
 
 Z = 14
 MAX_TILES = 16  # kebun > ~8 km tidak wajar untuk satu kebun swadaya
@@ -46,10 +51,12 @@ RETRY_WAIT_S = (1.0, 2.5)
 TIMEOUT_S = 15
 UA = "PasporKebun/1.1 (cek bukti deforestasi kebun petani; hackathon)"
 BUNDLE = Path(__file__).resolve().parents[2] / "seed_data" / "lapisan_peta_demo.json"
-SOURCE_LABEL = ("Peta nyata: JRC Global Forest Cover 2020 + Hansen GFC kehilangan tutupan pohon 2001-2025 "
-                "(tile Global Forest Watch, dihitung per piksel di dalam batas kebun)")
+SOURCE_LABEL = ("Peta nyata: JRC Global Forest Cover 2020 + hutan alam SBTN 2020 + Hansen GFC kehilangan tutupan pohon "
+                "2001-2025 (tile Global Forest Watch, dihitung per piksel di dalam batas kebun)")
+TILE_URLS = {"loss": PETA_LOSS_URL, "jrc": PETA_JRC_URL, "sbtn": PETA_SBTN_URL}
 LAYER_SOURCES = {
     "tree_cover_2020": "JRC Global Forest Cover 2020 v2020.3",
+    "natural_forest_2020": "SBTN Natural Lands Map v1.1, kelas hutan alam (WRI/SBTN, 30 m, tile GFW)",
     "disturbance_before_2021": "Hansen GFC, kehilangan tutupan pohon 2001-2020 (tile GFW)",
     "disturbance_after_2020": "Hansen GFC, kehilangan tutupan pohon 2021-2025 (tile GFW, lapisan yang sama dengan peta)",
 }
@@ -128,7 +135,7 @@ def get_tile(kind: str, x: int, y: int, online: bool = True) -> np.ndarray:
         raise PetaError("tile belum ada di cache dan unduhan online dimatikan")
     if time.time() < _state["offline_until"]:
         raise PetaError(f"Global Forest Watch belum terjangkau ({_state['last_error']})")
-    url = (PETA_LOSS_URL if kind == "loss" else PETA_JRC_URL).format(z=Z, x=x, y=y)
+    url = TILE_URLS[kind].format(z=Z, x=x, y=y)
     try:
         data = _download(url)
         arr = read_rgba(data)
@@ -159,10 +166,17 @@ def forest_mask(rgba: np.ndarray) -> np.ndarray:
     return rgba[..., 3] > 127
 
 
-def compute(geom: dict, tile_loader) -> dict:
-    """Persentase luas kebun: hutan 2020 (JRC), kehilangan 2001-2020 dan 2021-2025 (Hansen).
+def _sample(mask: np.ndarray, jj: np.ndarray, ii: np.ndarray, size: int) -> np.ndarray:
+    """Nilai mask (resolusi tile apa pun) pada pusat piksel tile kehilangan."""
+    s = mask.shape[1]
+    return mask[((jj + 0.5) * s / size).astype(int), ((ii + 0.5) * s / size).astype(int)]
 
-    `tile_loader(kind, x, y) -> RGBA ndarray`. Dipisah agar bisa diuji dengan tile buatan.
+
+def compute(geom: dict, tile_loader) -> dict:
+    """Persentase luas kebun: hutan 2020 (JRC), hutan alam 2020 (SBTN), kehilangan 2001-2020 dan 2021-2025 (Hansen).
+
+    `tile_loader(kind, x, y) -> RGBA ndarray`, kind = "loss" | "jrc" | "sbtn". Dipisah agar bisa diuji dengan
+    tile buatan. Tile "sbtn" boleh gagal (PetaError/LookupError): lapisan peta kedua lalu bernilai None.
     """
     import shapely
     from shapely.geometry import shape
@@ -174,9 +188,17 @@ def compute(geom: dict, tile_loader) -> dict:
     shapely.prepare(plot)
     n = forest = 0
     years: Counter = Counter()
+    second: dict[str, int] | None = {"natural": 0, "both": 0, "loss_both": 0, "loss_natural": 0}
+    loss_forest = 0
     for tx, ty in tiles:
         loss = tile_loader("loss", tx, ty)
         jrc = tile_loader("jrc", tx, ty)
+        nat = None
+        if second is not None:
+            try:
+                nat = tile_loader("sbtn", tx, ty)
+            except (PetaError, LookupError):
+                second = None  # peta kedua tidak lengkap: jangan pakai sebagian
         size = loss.shape[1]
         # pusat piksel tile kehilangan (resolusi tertinggi) yang jatuh di dalam batas kebun
         minx, miny, maxx, maxy = plot.bounds
@@ -192,18 +214,29 @@ def compute(geom: dict, tile_loader) -> dict:
         if not inside.any():
             continue
         yr = loss_year(loss)[jj[inside], ii[inside]]
-        js = jrc.shape[1]
-        fj = forest_mask(jrc)[((jj[inside] + 0.5) * js / size).astype(int), ((ii[inside] + 0.5) * js / size).astype(int)]
+        fj = _sample(forest_mask(jrc), jj[inside], ii[inside], size)
+        lost = yr >= 2021
         n += int(inside.sum())
         forest += int(fj.sum())
+        loss_forest += int((fj & lost).sum())
         years.update(int(v) for v in yr[yr > 0])
+        if second is not None and nat is not None:
+            fs = _sample(forest_mask(nat), jj[inside], ii[inside], size)
+            second["natural"] += int(fs.sum())
+            second["both"] += int((fs & fj).sum())
+            second["loss_both"] += int((fs & fj & lost).sum())
+            second["loss_natural"] += int((fs & lost).sum())
     if n == 0:
         raise PetaError("kebun lebih kecil dari satu piksel peta")
-    return summarize(n, forest, years)
+    return summarize(n, forest, years, loss_forest, second)
 
 
-def summarize(n: int, forest: int, years: dict[int, int]) -> dict:
-    """Jumlah piksel -> persentase lapisan bukti (dipakai juga untuk membangun tabel bawaan)."""
+def summarize(n: int, forest: int, years: dict[int, int], loss_forest: int | None = None,
+              second: dict[str, int] | None = None) -> dict:
+    """Jumlah piksel -> persentase lapisan bukti (dipakai juga untuk membangun tabel bawaan).
+
+    `loss_forest` = piksel hutan JRC yang hilang sesudah 2020; `second` = hitungan peta hutan kedua (SBTN).
+    """
     years = Counter({int(y): int(c) for y, c in years.items()})
     before = sum(c for y, c in years.items() if y <= 2020)
     after = sum(c for y, c in years.items() if y >= 2021)
@@ -212,9 +245,15 @@ def summarize(n: int, forest: int, years: dict[int, int]) -> dict:
     before_years = [(y, c) for y, c in years.items() if y <= 2020]
     return {
         "tree_cover_2020": pct(forest),
+        "natural_forest_2020": pct(second["natural"]) if second else None,
+        "forest_agree_2020": pct(second["both"]) if second else None,
         "commodity_2020": None,  # peta sawit 2020 butuh Earth Engine; JRC sudah mengecualikan kebun sawit
         "disturbance_before_2021": pct(before),
         "disturbance_after_2020": pct(after),
+        # tumpang-tindih per piksel: bagian kebun yang hutan DAN hilang sesudah 2020
+        "loss_after_on_forest": pct(loss_forest) if loss_forest is not None else None,
+        "loss_after_on_forest_both": pct(second["loss_both"]) if second else None,
+        "loss_after_on_natural": pct(second["loss_natural"]) if second else None,
         "loss_after_by_year": after_years,
         "loss_after_main_year": max(after_years, key=after_years.get) if after_years else None,
         "loss_before_main_year": str(max(before_years, key=lambda t: t[1])[0]) if before_years else None,

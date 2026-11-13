@@ -26,6 +26,7 @@ from .services import audit
 from .services import kawasan as kawasan_svc
 from .services import plots as plot_svc
 from .services import supply as supply_svc
+from .services import verification as verification_svc
 from .services.satellite import demo as demo_sim
 from .services.satellite import peta_gfw
 from .services.yield_model import SEASONAL, TYPICAL_SMALLHOLDER_FACTOR, potential_t_per_ha_year
@@ -53,8 +54,8 @@ HERO_LAND = {
     "Darmawan Lubis": ("surat_desa", "SKGR 077/SH/2012", "proses", "Joko Susilo (tetangga barat)"),
     "Wahyuni Harahap": ("surat_desa", "SKGR 102/SH/2010", "belum", "Agus Pratama (tetangga timur)"),
     "Agus Pratama": ("sertifikat", "SHM No. 00412/Sungai Harapan", "ada", "Wahyuni Harahap (tetangga barat)"),
-    "Sri Rahayu": ("pernyataan", None, "proses", "Hasan Siregar (tetangga timur)"),
-    "Hasan Siregar": ("sertifikat", "SHM No. 00203/Sungai Harapan", "ada", "Sri Rahayu (tetangga barat)"),
+    "Sri Rahayu": ("pernyataan", None, "proses", "Agus Pratama (tetangga utara)"),
+    "Hasan Siregar": ("sertifikat", "SHM No. 00203/Sungai Harapan", "ada", "Mulyadi Purba (tetangga utara)"),
 }
 SIDES_DEMO = [
     {"utara": {"jenis": "parit", "tetangga": None}, "timur": {"jenis": "kebun", "tetangga": "Siti Aminah"},
@@ -79,6 +80,8 @@ DEMO_USERS = [
 #   kehilangan tutupan menyala, tetapi bukan deforestasi (aman).
 # - Rina: di dalam Hutan Produksi menurut peta KLHK 2017 (GFW) dan peta Kemenhut Juni 2026 -> berisiko legalitas.
 # - Darmawan: hutan menurut JRC 2020, tanpa kehilangan tutupan -> bukti belum cukup (perlu cek lapangan).
+# - Hasan: peta JRC menyebut hutan (95%) yang hilang 2021-2022, tetapi peta hutan alam SBTN menyebut 0% hutan alam
+#   (dicek 14 Nov 2026). Dengan satu peta kebun ini langsung Berisiko; dengan dua peta -> perlu cek lapangan.
 HERO = [
     # nama, desa, (dx_m, dy_m), (w, h), skenario, tahun tanam diklaim, saksi
     ("Budi Santoso", "Sungai Harapan", (-420, 160), (165, 128), "sawit_tua_stabil", 2008, "Ketua Poktan Sri Rejeki"),
@@ -90,7 +93,7 @@ HERO = [
     ("Wahyuni Harahap", "Sungai Harapan", (-240, -40), (118, 120), "sawit_tua_stabil", 2010, "Ketua Poktan Sri Rejeki"),
     ("Agus Pratama", "Sungai Harapan", (-90, -45), (160, 138), "sawit_tua_stabil", 2006, "Ketua Poktan Sri Rejeki"),
     ("Sri Rahayu", "Sungai Harapan", (-420, -215), (110, 100), "sawit_tua_stabil", 2013, "Ketua Poktan Sri Rejeki"),
-    ("Hasan Siregar", "Sungai Harapan", (-280, -230), (210, 172), "sawit_tua_stabil", 2004, "Ketua Poktan Sri Rejeki"),
+    ("Hasan Siregar", "Sungai Harapan", (-2850, 7560), (120, 120), "peremajaan_2021", 2021, "Ketua Poktan Sri Rejeki"),
 ]
 
 VILLAGES = [
@@ -358,7 +361,7 @@ def _seed_verification(db, plots: list[Plot], now: datetime, rng: np.random.Gene
     """Riwayat verifikasi demo: satu putaran inspeksi selesai (Okt) dan putaran berjalan (Nov) + satu keberatan."""
     by_name = {p.farmer.name: p for p in plots[:10]}
     done_at = now - timedelta(days=24)
-    done = [by_name[n] for n in ("Budi Santoso", "Agus Pratama", "Hasan Siregar", "Sutrisno Wibowo")]
+    done = [by_name[n] for n in ("Budi Santoso", "Agus Pratama", "Sri Rahayu", "Sutrisno Wibowo")]
     extra = [p for p in plots[10:] if p.risk_level == "rendah"][:6]
     for k, p in enumerate(done + extra):
         bad = k == len(done) + 2  # satu kebun tidak sesuai di lapangan
@@ -372,10 +375,10 @@ def _seed_verification(db, plots: list[Plot], now: datetime, rng: np.random.Gene
         p.verified_at, p.verified_result, p.verified_by = i.done_at, i.result, "Andi Saputra"
         audit.log(db, "Andi Saputra", "verifikator", "inspeksi_selesai", "kebun", p.id,
                   f"Inspeksi lapangan {p.code}: {'TIDAK sesuai' if bad else 'sesuai'}", {"batch": "2026-10"}, at=i.done_at)
-    pending = [by_name[n] for n in ("Joko Susilo", "Rina Wati", "Darmawan Lubis")]
+    pending = [by_name[n] for n in ("Joko Susilo", "Rina Wati", "Darmawan Lubis", "Hasan Siregar")]
     pending += [p for p in plots[10:] if p.risk_level in ("tinggi", "perlu_cek")][:4]
     for p in pending:
-        reason = "berisiko" if p.risk_level == "tinggi" else "perlu_cek"
+        reason = verification_svc.reason_for(p)
         db.add(Inspection(plot_id=p.id, batch="2026-11", reason=reason, status="menunggu", created_at=now - timedelta(days=3)))
     audit.log(db, "Andi Saputra", "verifikator", "sampel_inspeksi", "inspeksi", None,
               f"Sampel inspeksi 2026-11: {len(pending)} kebun dipilih berbasis risiko", None, at=now - timedelta(days=3))

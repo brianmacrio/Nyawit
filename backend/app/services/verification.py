@@ -25,6 +25,7 @@ from . import geo
 REASON_LABEL = {
     "berisiko": "Status satelit berisiko",
     "perlu_cek": "Status satelit perlu cek",
+    "peta_berbeda": "Dua peta hutan tidak sepakat: wajib foto lapangan",
     "sengketa": "Ada sengketa lahan yang dinyatakan",
     "bukti_lemah": "Bukti lahan hanya pernyataan atau belum ada",
     "belum_pernah": "Belum pernah dikunjungi verifikator",
@@ -48,7 +49,7 @@ def _reason(p: Plot) -> tuple[int, str]:
     if p.risk_level == "tinggi":
         return 0, "berisiko"
     if p.risk_level == "perlu_cek":
-        return 1, "perlu_cek"
+        return 1, "peta_berbeda" if (p.analysis_rule or "").endswith("peta-berbeda") else "perlu_cek"
     if p.dispute:
         return 2, "sengketa"
     if p.land_proof in (None, "pernyataan"):
@@ -56,6 +57,11 @@ def _reason(p: Plot) -> tuple[int, str]:
     if p.verified_at is None:
         return 4, "belum_pernah"
     return 5, "acak"
+
+
+def reason_for(p: Plot) -> str:
+    """Alasan kebun masuk sampel inspeksi (kunci REASON_LABEL)."""
+    return _reason(p)[1]
 
 
 def generate_sample(db: Session, batch: str, seed: int | None = None) -> list[Inspection]:
