@@ -25,8 +25,9 @@ perbesar kursor, jeda 1-2 detik setelah setiap hasil muncul.
 | 0:15–0:25 | **Masuk** → klik kartu "Petugas koperasi" | "Setiap peran punya akun sendiri." |
 | 0:25–1:15 | **Peta kebun** → Daftarkan kebun → "Saya sedang di kebun" (di laptop: simulasikan posisi) → draf AI muncul; tunjukkan model, keyakinan, waktu proses | "Petugas berdiri di kebun. GPS mencatat titik, AI menggambar batas dari citra satelit." |
 | 1:15–1:45 | Isi batas tiap sisi, 2 saksi, bukti lahan "Surat desa", STDB "Sedang diurus"; deret NDVI "Ikuti peta nyata"; setuju; Simpan | "Tidak perlu membaca citra: cukup sebutkan parit, jalan, dan tetangga di tiap sisi." |
-| 1:45–2:20 | Buka kebun **Joko (PK-00004-U)** + centang lapisan "Hutan 2020 (JRC)" dan "Kehilangan tutupan pohon": cap BERISIKO, checklist Siap EUDR, bukti satelit | "Peta nyata: hutan pada 2020, ditebang 2025. Melanggar syarat bebas deforestasi walau di APL." |
+| 1:45–2:20 | Buka kebun **Joko (PK-00004-U)** + centang lapisan "Hutan 2020 (JRC)" dan "Kehilangan tutupan pohon": cap BERISIKO, checklist Siap EUDR, bukti satelit | "Peta nyata: dua peta hutan sepakat ini hutan pada 2020, ditebang 2025. Melanggar syarat bebas deforestasi walau di APL." |
 | 2:20–2:40 | Buka kebun Sutrisno (PK-00003-P): kebun juga berwarna merah muda di lapisan kehilangan tutupan | "Tutupan hilang 2023, tapi lahannya bukan hutan pada 2020: peremajaan, bukan deforestasi. Petani PSR tetap aman." |
+| (cadangan, +20 dtk) | Buka kebun **Hasan (PK-00010-E)** + centang "Hutan 2020 (JRC)", "Hutan alam 2020 (SBTN)", dan "Kehilangan tutupan pohon": cap PERLU CEK | "Peta JRC bilang hutan, peta kedua bilang bukan hutan alam. Kami tidak memvonis dari satu peta: kebun ini wajib dicek verifikator." |
 | 2:40–3:20 | Masuk sebagai pengepul **UD Sinar Jaya** → ketik PK-00001-F → 9.000 kg → **Ditahan** | "9 ton dari kebun 2 ha? Mustahil. TBS dari luar ditahan di titik pengepul." |
 | 3:20–3:50 | Masuk sebagai **verifikator** → Inspeksi lapangan → isi satu hasil + foto → tab Keberatan (Joko Susilo) → tab Integritas | "Verifikator independen memeriksa sampel kebun; riwayat tidak bisa diubah diam-diam." |
 | 3:50–4:30 | Masuk sebagai **pabrik** → tabel pengepul (UD Sinar Jaya skor tertinggi + alasan) → Buat paket ekspor → angka masuk/dipisahkan → unduh ZIP | "Pabrik hanya mengirim TBS dari kebun Siap EUDR, lengkap dengan bukti untuk importir." |
@@ -80,6 +81,15 @@ Rincian slot: 1 menit persiapan laptop dan verifikasi localhost, **7 menit prese
   hilang di lahan hutan = berisiko, hilang di lahan bukan hutan = peremajaan. Peta kawasan hutan menjawab legalitas, bukan
   tutupan. Peta global punya galat, sehingga kasus meragukan menjadi "Perlu cek" dan diteruskan ke verifikasi lapangan,
   sesuai cara Whisp (FAO) dan pedoman Komisi Eropa. Rincian: docs/ALGORITMA.md bagian 7.
+- *Peta hutan itu bisa salah, bagaimana kalau petani jujur ikut tertuduh?* Itu sebabnya ada dua peta. Makalah resmi peta JRC
+  mencatat galat komisi kelas hutan 18%, terutama di kebun pohon. Kebun baru berstatus Berisiko bila peta JRC dan peta hutan
+  alam SBTN sepakat per piksel; bila tidak sepakat (contoh: kebun Hasan), statusnya Perlu cek dan kebun wajib masuk sampel
+  inspeksi. Dengan aturan lama (satu peta), kebun Hasan langsung Berisiko. Petani juga tetap bisa mengajukan keberatan.
+- *Berkas ekspornya bisa langsung dipakai importir?* Paket memuat `traces_unggah.geojson` yang sudah diperiksa terhadap aturan
+  format Sistem Informasi EUDR (6 desimal, poligon tertutup, tanpa lubang atau sisi berpotongan, kode negara ISO2). Kebun yang
+  geometrinya akan ditolak sistem tidak ikut pengiriman. Pengajuan pernyataan uji tuntas tetap dilakukan importir.
+- *Bagaimana dengan data pribadi petani?* Tanpa NIK, persetujuan tercatat, nama tidak ikut ke pembeli. Penilaian dampaknya
+  (UU PDP Pasal 34) ada di docs/DPIA.md, termasuk daftar jujur hal yang belum selesai.
 - *Batas kawasan hutan itu digambar sendiri?* Tidak. Sumber utama peta Kawasan Hutan Kemenhut; bila servernya mati (seperti
   12 Nov 2026), aplikasi otomatis memakai Peta Kawasan Hutan KLHK 2017 dari Global Forest Watch, dan paspor menyebut sumbernya.
   Satelit tidak bisa melihat status hukum lahan; yang dilihat satelit adalah tutupan pohon dan riwayatnya.

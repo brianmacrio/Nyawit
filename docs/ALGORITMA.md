@@ -168,8 +168,32 @@ aplikasi membaca dua lapisan nyata per piksel di dalam batas kebun (`services/sa
 
 Aturannya: kehilangan sesudah 2020 di lahan yang hutan pada 2020 → **Berisiko** (aturan 4); kehilangan sesudah 2020 di lahan
 yang bukan hutan → **Aman, peremajaan** (aturan 1-peremajaan); hutan 2020 tanpa kehilangan → **Perlu cek** (aturan 5).
+
+**Dua peta hutan, bukan satu (sejak 14 Nov 2026).** Makalah resmi peta JRC (Bourgoin dkk., ESSD 2026) melaporkan akurasi
+91%, tetapi galat komisi kelas hutan 18%: peta itu lebih sering menyebut "hutan" pada lahan yang bukan hutan daripada
+sebaliknya, terutama di kebun pohon dan agroforestri (sawit dan karet disebut), dan penulisnya menyarankan peta itu
+dipasangkan dengan data lain atau foto lapangan. Studi lapangan kopi di Meksiko (Mongabay, Des 2025) menemukan peta global
+menandai sekitar tiga perempat kebun lama sebagai tidak patuh. Kalau aturan 4 bersandar pada JRC saja, petani yang
+meremajakan karet tua menjadi sawit sesudah 2020 akan divonis Berisiko. Karena itu setiap piksel yang hilang dicek juga ke
+peta hutan kedua, kelas hutan alam **SBTN Natural Lands Map v1.1** (WRI/SBTN, 30 m; tile GFW
+`sbtn_natural_forests_map/v202504/natural_forest`), peta yang juga dipakai GFW Pro ("pendekatan terdekat definisi hutan
+EUDR") dan ditawarkan Koltiva sebagai lapisan pembanding:
+
+| Kondisi per piksel di dalam batas kebun | Keputusan |
+|---|---|
+| Hutan menurut JRC **dan** SBTN, hilang sesudah 2020, di ≥ 10% luas kebun | **Berisiko** (aturan 4) |
+| Hutan menurut JRC saja, hilang sesudah 2020 | **Perlu cek**, wajib masuk sampel inspeksi (aturan 4-peta-berbeda) |
+| Hutan alam menurut SBTN saja, hilang sesudah 2020 | **Perlu cek** (aturan 1-peta-berbeda) |
+| Kehilangan tutupan jatuh di luar bagian kebun yang berhutan | **Perlu cek** untuk sisa hutannya (aturan 4-di-luar-hutan) |
+| Peta kedua tidak terbaca | Aturan satu peta tetap berlaku; paspor mencatat "bersandar pada satu peta hutan" |
+
+Hasil "peta berbeda" sengaja **bukan Aman**: hutan tanaman tetap terhitung hutan menurut EUDR dan SBTN hanya memetakan hutan
+alam, jadi yang memutuskan adalah verifikator di lapangan (tunggul, umur tanaman, foto geotag). Tumpang-tindih dihitung per
+piksel (hutan ∧ hilang), bukan dari dua persentase per kebun, supaya hutan di satu sudut dan peremajaan di sudut lain tidak
+terbaca sebagai deforestasi. Mengapa bukan *Natural Forests of the World 2020* (Google DeepMind/WRI, 10 m, akurasi 92,2%)?
+Peta itu lebih tajam, tetapi hanya tersedia di Earth Engine (butuh akun); SBTN tersedia sebagai tile publik tanpa kunci.
 Zoom 14 (piksel ~4,8 m dari data 30 m), hanya pusat piksel di dalam poligon yang dihitung. Untuk kebun contoh, hasil
-hitungan disimpan di `seed_data/lapisan_peta_demo.json` (dihitung 13 Nov 2026 dengan algoritma yang sama) agar demo identik
+hitungan disimpan di `seed_data/lapisan_peta_demo.json` (dibangun `python -m app.scripts.bangun_lapisan_demo`, algoritma yang sama) agar demo identik
 tanpa internet; kebun baru dihitung online lalu tile disimpan di cache. Deret NDVI di mode demo tetap simulasi, tetapi
 skenarionya mengikuti peta nyata, dan paspor memberi peringatan bila keduanya bertentangan.
 
@@ -178,11 +202,12 @@ skenarionya mengikuti peta nyata, dan paspor memberi peringatan bila keduanya be
 
 | Kebun uji | Indikator 1 | Indikator 2 | Indikator 3 | Hutan JRC 2020 | Keputusan yang benar |
 |---|---|---|---|---|---|
-| Joko Susilo (PK-00004-U) | menyala: 100% hilang 2025 | tidak (APL) | tidak (APL) | 100% | Berisiko: hutan dibuka 2025 |
+| Joko Susilo (PK-00004-U) | menyala: 100% hilang 2025 | tidak (APL) | tidak (APL) | 100% (SBTN: 95%) | Berisiko: hutan dibuka 2025, dua peta sepakat |
 | Sutrisno Wibowo (PK-00003-P) | menyala: 100% hilang 2023 | tidak | tidak | 0% | Aman: peremajaan, bukan deforestasi |
 | Rina Wati (PK-00005-Z) | tidak | menyala: 100% Hutan Produksi | menyala: Hutan Produksi Tetap | 0% | Berisiko: legalitas |
 | Kebun uji di TN Tesso Nilo | tidak (dibuka 2011) | menyala: konservasi | menyala: konservasi | 0% | Berisiko: legalitas, walau lolos uji deforestasi |
 | Darmawan Lubis (PK-00006-E) | tidak | tidak | tidak | 92% | Perlu cek lapangan |
+| Hasan Siregar (PK-00010-E) | menyala: 78% hilang 2021–2022 | tidak | tidak | 96% (SBTN: 0%) | Perlu cek: dua peta hutan tidak sepakat |
 | Budi Santoso (PK-00001-F) | tidak | tidak | tidak | 0% | Aman |
 
 Pemindaian 0,16° x 0,16° di sekitar desa demo menunjukkan pola yang penting untuk validitas: di APL, kehilangan tutupan
@@ -211,6 +236,12 @@ akan menuduh banyak petani peremajaan; indikator 2/3 sendirian akan melewatkan p
 - Whisp: https://pypi.org/project/openforis-whisp/
 - RADD: Reiche et al. 2021, Environ. Res. Lett. https://iopscience.iop.org/article/10.1088/1748-9326/abd0a8
 - JRC GFC2020 accuracy: https://publications.jrc.ec.europa.eu/repository/handle/JRC141231
+- GFC2020, makalah data (Bourgoin dkk., ESSD 18:1331, 2026; galat komisi hutan 18%, kebun pohon): https://essd.copernicus.org/articles/18/1331/2026/essd-18-1331-2026-discussion.html
+- SBTN Natural Lands Map v1.1, kelas hutan alam di GFW: https://data-api.globalforestwatch.org/dataset/sbtn_natural_forests_map
+- GFW Pro dan EUDR (hutan alam SBTN, peringatan terintegrasi, verifikasi citra): https://pro-news.globalforestwatch.org/news-events/how-gfw-pro-supports-eudr-compliance
+- Koltiva, kepatuhan EUDR (lapisan JRC, GFW, SBTN; agen lapangan): https://www.koltiva.com/eudrcompliance
+- Natural Forests of the World 2020 (Google Research): https://research.google/blog/separating-natural-forests-from-other-tree-cover-with-ai-for-deforestation-free-supply-chains/
+- Format GeoJSON TRACES v1.3 (Komisi Eropa): https://eudr.webcloud.ec.europa.eu/tracesnt/help/eudr-documentation/operator/geojson-description.html
 - Peta sawit global: Descals et al. 2021, ESSD 13:1211 https://essd.copernicus.org/articles/13/1211/2021/
 - Tahun tanam sawit: Descals et al. 2024, ESSD 16:5111 https://essd.copernicus.org/articles/16/5111/2024/
 - Pembanding algoritma perubahan: Remote Sensing 17:680 (2025)
