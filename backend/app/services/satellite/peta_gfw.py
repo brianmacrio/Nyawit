@@ -49,7 +49,7 @@ BUNDLE = Path(__file__).resolve().parents[2] / "seed_data" / "lapisan_peta_demo.
 SOURCE_LABEL = ("Peta nyata: JRC Global Forest Cover 2020 + Hansen GFC kehilangan tutupan pohon 2001-2025 "
                 "(tile Global Forest Watch, dihitung per piksel di dalam batas kebun)")
 LAYER_SOURCES = {
-    "tree_cover_2020": "JRC Global Forest Cover 2020 v2020.3 (peta hutan acuan UE; kebun sawit tidak dihitung hutan)",
+    "tree_cover_2020": "JRC Global Forest Cover 2020 v2020.3",
     "disturbance_before_2021": "Hansen GFC, kehilangan tutupan pohon 2001-2020 (tile GFW)",
     "disturbance_after_2020": "Hansen GFC, kehilangan tutupan pohon 2021-2025 (tile GFW, lapisan yang sama dengan peta)",
 }
