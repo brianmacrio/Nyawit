@@ -116,8 +116,15 @@ def _kawasan_item(kw: dict, strict: bool) -> EvidenceItem:
 
 
 def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_pct: float,
-           kawasan: dict | None = None, strict: bool = False) -> RiskDecision:
-    """`kawasan` = hasil services.kawasan.lookup().to_dict(); `strict` = mode live (peta resmi wajib dicek)."""
+           kawasan: dict | None = None, strict: bool = False, forest_map: str | None = None,
+           layer_sources: dict[str, str] | None = None) -> RiskDecision:
+    """`kawasan` = hasil services.kawasan.lookup().to_dict(); `strict` = mode live (peta resmi wajib dicek).
+
+    `forest_map="jrc"`: lapisan tutupan 2020 berasal dari peta HUTAN JRC GFC2020 yang sudah mengecualikan
+    kebun sawit, jadi "ada tutupan + kehilangan sesudah 2020" tidak perlu menunggu peta komoditas.
+    """
+    src = {**LAYER_SOURCES, **(layer_sources or {})}
+    jrc = forest_map == "jrc"
     tree = layers.get("tree_cover_2020")
     com = layers.get("commodity_2020")
     before = layers.get("disturbance_before_2021")
@@ -132,31 +139,42 @@ def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_p
     items: list[EvidenceItem] = [_kawasan_item(kw, strict)]
     items.append(
         EvidenceItem(
-            "tree_cover_2020", "Tutupan pohon per 31 Des 2020", _pct(tree),
+            "tree_cover_2020", "Hutan per 31 Des 2020 (peta JRC)" if jrc else "Tutupan pohon per 31 Des 2020", _pct(tree),
             "tidak_tersedia" if tree is None else ("netral" if tree > T_TREE else "mendukung_aman"),
-            LAYER_SOURCES["tree_cover_2020"],
-            "Tutupan pohon belum tentu hutan: kebun sawit tua juga terbaca sebagai pohon.",
+            src["tree_cover_2020"],
+            ("Peta hutan acuan UE: kebun sawit/karet tidak dihitung hutan. Peta ini bisa keliru menyebut kebun "
+             "swadaya tua yang rapat sebagai hutan, jadi tetap perlu dicocokkan dengan bukti lain."
+             if jrc else "Tutupan pohon belum tentu hutan: kebun sawit tua juga terbaca sebagai pohon."),
         )
     )
     items.append(
         EvidenceItem(
             "commodity_2020", "Sudah kebun sawit pada 2020", _pct(com),
             "tidak_tersedia" if com is None else ("mendukung_aman" if com >= T_COMMODITY else "netral"),
-            LAYER_SOURCES["commodity_2020"],
+            src["commodity_2020"],
         )
     )
     items.append(
         EvidenceItem(
             "disturbance_before_2021", "Lahan dibuka sebelum 2021", _pct(before),
             "tidak_tersedia" if before is None else ("mendukung_aman" if before >= T_DIST_BEFORE else "netral"),
-            LAYER_SOURCES["disturbance_before_2021"],
+            src["disturbance_before_2021"],
         )
     )
+    by_year = layers.get("loss_after_by_year") or {}
+    after_val = _pct(after)
+    if after and by_year:
+        after_val += " (" + ", ".join(f"{y}: {dec(v, 0)}%" for y, v in sorted(by_year.items()) if v >= 1) + ")"
+        after_val = after_val.replace(" ()", "")
+    after_verdict = "tidak_tersedia" if after is None else ("mendukung_risiko" if after >= T_DIST_AFTER else "mendukung_aman")
+    if jrc and after is not None and after >= T_DIST_AFTER and tree is not None and tree <= T_TREE:
+        after_verdict = "netral"  # kehilangan tutupan di lahan yang bukan hutan 2020: peremajaan/panen, bukan deforestasi
     items.append(
         EvidenceItem(
-            "disturbance_after_2020", "Kehilangan tutupan setelah 2020", _pct(after),
-            "tidak_tersedia" if after is None else ("mendukung_risiko" if after >= T_DIST_AFTER else "mendukung_aman"),
-            LAYER_SOURCES["disturbance_after_2020"],
+            "disturbance_after_2020", "Kehilangan tutupan setelah 2020", after_val, after_verdict,
+            src["disturbance_after_2020"],
+            "Kehilangan tutupan pohon belum tentu deforestasi: peremajaan atau panen kebun juga terhitung."
+            if after else "",
         )
     )
     if ts is None or ts.n_obs == 0:
@@ -190,7 +208,8 @@ def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_p
         return RiskDecision("tinggi", f"Berisiko: {protected_pct:.0f}% kebun masuk {where}", "aturan-0-legalitas",
                             0.95 if kw.get("checked") or kw.get("source") == "ilustrasi" else 0.8, items, notes)
 
-    r = _satellite_rules(items, tree, com, before, after, ts, clearing_after, clearing_before, ts_ok)
+    r = _satellite_rules(items, tree, com, before, after, ts, clearing_after, clearing_before, ts_ok, jrc,
+                         layers.get("loss_after_main_year"))
     if 0 < protected_pct <= T_PROTECTED:
         r.notes.append(f"{dec(protected_pct, 1)}% kebun bersinggungan dengan batas kawasan hutan. Selisih sekecil ini bisa "
                        "berasal dari ketelitian peta; pastikan patok batas di lapangan.")
@@ -208,7 +227,8 @@ def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_p
     return r
 
 
-def _satellite_rules(items, tree, com, before, after, ts, clearing_after, clearing_before, ts_ok) -> RiskDecision:
+def _satellite_rules(items, tree, com, before, after, ts, clearing_after, clearing_before, ts_ok, jrc=False,
+                     loss_year=None) -> RiskDecision:
     notes: list[str] = []
     forest_2020 = tree is not None and tree > T_TREE
     if tree is None:
@@ -222,7 +242,15 @@ def _satellite_rules(items, tree, com, before, after, ts, clearing_after, cleari
 
     replant = post_layer or bool(clearing_after)
     if not forest_2020:
-        return RiskDecision("rendah", "Aman: tidak ada tutupan pohon pada 31 Des 2020", "aturan-1", 0.85, items, notes,
+        if jrc and post_layer:
+            yr = loss_year or (clearing_after[-1].date[:4] if clearing_after else "setelah 2020")
+            notes.append(f"Peta GFW mencatat kehilangan tutupan pohon {yr} di {dec(after, 0)}% kebun, tetapi peta hutan JRC "
+                         "menyebut lahan ini bukan hutan pada 2020. Artinya pohon yang ditebang adalah tanaman (mis. "
+                         "peremajaan sawit), bukan hutan, sehingga tidak termasuk deforestasi menurut EUDR.")
+            return RiskDecision("rendah", f"Aman: kehilangan tutupan {yr} di lahan yang bukan hutan pada 2020 (peremajaan)",
+                                "aturan-1-peremajaan", 0.85, items, notes, is_replanting=True)
+        return RiskDecision("rendah", "Aman: bukan hutan pada 31 Des 2020" if jrc else
+                            "Aman: tidak ada tutupan pohon pada 31 Des 2020", "aturan-1", 0.85, items, notes,
                             is_replanting=replant)
     if com is not None and com >= T_COMMODITY:
         if replant:
@@ -241,7 +269,7 @@ def _satellite_rules(items, tree, com, before, after, ts, clearing_after, cleari
         return RiskDecision("rendah", "Aman: lahan sudah menjadi kebun sawit sebelum 2021", "aturan-2", 0.9, items, notes)
     if before is not None and before >= T_DIST_BEFORE:
         return RiskDecision("rendah", "Aman: lahan dibuka sebelum batas EUDR (31 Des 2020)", "aturan-3", 0.85, items, notes)
-    if n_post > 0 and com is None:
+    if n_post > 0 and com is None and not jrc:
         pre = _segment_before(ts, clearing_after[-1].date) if clearing_after else None
         if pre is None or pre < 0.83:
             notes.append("Lapisan komoditas 2020 tidak tersedia sehingga peremajaan sawit dan pembukaan hutan "
@@ -250,8 +278,17 @@ def _satellite_rules(items, tree, com, before, after, ts, clearing_after, cleari
                                 "aturan-4-tanpa-komoditas", 0.5, items, notes)
     if n_post > 0:
         conf = 0.6 + 0.35 * (n_post / max(n_avail, 1))
-        when = bulan(clearing_after[-1].date) if clearing_after else "setelah 2020"
+        when = bulan(clearing_after[-1].date) if clearing_after else (loss_year or "setelah 2020")
+        if jrc and post_layer:
+            notes.append(f"Peta hutan JRC: {dec(tree, 0)}% kebun masih hutan pada 2020; peta Hansen: {dec(after, 0)}% "
+                         "kehilangan tutupan sesudah 2020. Bila petani punya bukti kebun sudah ditanam sebelum 2021 "
+                         "(peta JRC bisa keliru di kebun tua), ajukan keberatan dengan foto dan dokumen.")
         return RiskDecision("tinggi", f"Berisiko: hutan dibuka {when}, setelah batas EUDR", "aturan-4",
                             round(conf, 2), items, notes + [f"{n_post} dari {n_avail} sumber bukti menunjukkan pembukaan hutan setelah 2020."])
-    notes.append("Ada tutupan pohon pada 2020 tetapi tidak ada bukti sawit maupun pembukaan lahan. Perlu verifikasi lapangan (foto geotag) atau citra resolusi tinggi.")
+    if jrc:
+        notes.append(f"Peta hutan JRC menyebut {dec(tree, 0)}% kebun masih hutan pada 2020 dan tidak ada kehilangan tutupan "
+                     "sesudahnya. Bisa jadi memang hutan (belum ditanami), atau kebun sawit tua yang rapat dan salah "
+                     "terbaca sebagai hutan. Perlu verifikasi lapangan (foto geotag) atau citra resolusi tinggi.")
+    else:
+        notes.append("Ada tutupan pohon pada 2020 tetapi tidak ada bukti sawit maupun pembukaan lahan. Perlu verifikasi lapangan (foto geotag) atau citra resolusi tinggi.")
     return RiskDecision("perlu_cek", "Perlu cek: bukti satelit belum cukup untuk memutuskan", "aturan-5", 0.5, items, notes)

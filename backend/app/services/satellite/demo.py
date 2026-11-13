@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 
@@ -49,6 +50,61 @@ SCENARIOS: dict[str, dict] = {
 
 FOREST, PALM, BARE = 0.86, 0.785, 0.24
 
+# Skenario bertahun: "hutan_dibuka_2025", "peremajaan_2024", "dibuka_2018", dst. Dipakai agar deret
+# NDVI simulasi mengikuti tahun kehilangan tutupan yang terbaca di peta nyata (lihat peta_gfw).
+YEARLY = {
+    "hutan_dibuka": ("Hutan dibuka {y} lalu ditanami sawit", "hutan_dibuka_2022", (6, 14), (11, 20), range(2021, 2026)),
+    "peremajaan": ("Peremajaan sawit tua (PSR) tahun {y}", "peremajaan_2023", (3, 6), (7, 15), range(2021, 2026)),
+    "dibuka": ("Dibuka {y} (sebelum batas EUDR), ditanam sawit", "dibuka_2019", (4, 10), (9, 1), range(2019, 2021)),
+}
+
+
+def parse(scenario: str | None) -> tuple[str, int | None]:
+    """'peremajaan_2024' -> ('peremajaan', 2024); skenario tanpa tahun -> (nama, None)."""
+    if scenario:
+        m = re.fullmatch(r"(hutan_dibuka|peremajaan|dibuka)_(\d{4})", scenario)
+        if m and int(m.group(2)) in YEARLY[m.group(1)][4]:
+            return m.group(1), int(m.group(2))
+    return scenario or "", None
+
+
+def is_scenario(scenario: str | None) -> bool:
+    return scenario in SCENARIOS or parse(scenario)[1] is not None
+
+
+def info(scenario: str) -> dict:
+    """Label dan lapisan simulasi skenario (termasuk skenario bertahun)."""
+    if scenario in SCENARIOS:
+        return SCENARIOS[scenario]
+    kind, year = parse(scenario)
+    if year is None:
+        return SCENARIOS["sawit_tua_stabil"]
+    label, base, *_ = YEARLY[kind]
+    return {"label": label.format(y=year), "layers": SCENARIOS[base]["layers"]}
+
+
+def scenario_from_layers(layers: dict, kawasan_pct: float = 0.0, t_tree: float = 10.0, t_after: float = 10.0,
+                         t_before: float = 50.0) -> str:
+    """Skenario simulasi NDVI yang sejalan dengan lapisan peta nyata (mode demo).
+
+    Dengan begitu deret NDVI simulasi tidak bertentangan dengan peta yang dilihat pengguna:
+    kebun di atas piksel kehilangan tutupan 2023 mendapat deret "peremajaan 2023", dst.
+    """
+    tree = layers.get("tree_cover_2020") or 0.0
+    after = layers.get("disturbance_after_2020") or 0.0
+    before = layers.get("disturbance_before_2021") or 0.0
+    y_after = int(layers.get("loss_after_main_year") or 0)
+    y_before = int(layers.get("loss_before_main_year") or 0)
+    if kawasan_pct > 5.0:
+        return "kawasan_hutan"
+    if after >= t_after and 2021 <= y_after <= 2025:
+        return f"{'hutan_dibuka' if tree > t_tree else 'peremajaan'}_{y_after}"
+    if before >= t_before and 2019 <= y_before <= 2020:  # deret NDVI mulai 2018
+        return f"dibuka_{y_before}"
+    if tree > t_tree:
+        return "data_kurang"
+    return "sawit_tua_stabil"
+
 
 def _palm_growth(years_since_plant: float) -> float:
     """NDVI sawit muda: tanah + tanaman penutup -> tajuk menutup ~5-6 tahun."""
@@ -62,22 +118,17 @@ def _base_ndvi(scenario: str, d: date) -> float:
         return PALM + seas
     if scenario == "data_kurang":
         return 0.83 + seas
-    if scenario == "dibuka_2019":
-        clear, plant = frac_year(date(2019, 4, 10)), frac_year(date(2019, 9, 1))
+    kind, year = parse(scenario)
+    if year is not None:
+        _, _, (cm, cd), (pm, pd), _ = YEARLY[kind]
+        clear, plant = frac_year(date(year, cm, cd)), frac_year(date(year, pm, pd))
+    if kind in ("dibuka", "hutan_dibuka"):
         if t < clear:
             return FOREST + seas
         if t < plant:
             return BARE
         return _palm_growth(t - plant) + seas
-    if scenario == "hutan_dibuka_2022":
-        clear, plant = frac_year(date(2022, 6, 14)), frac_year(date(2022, 11, 20))
-        if t < clear:
-            return FOREST + seas
-        if t < plant:
-            return BARE
-        return _palm_growth(t - plant) + seas
-    if scenario == "peremajaan_2023":
-        clear, plant = frac_year(date(2023, 3, 6)), frac_year(date(2023, 7, 15))
+    if kind == "peremajaan":
         if t < clear:
             return 0.73 + seas  # sawit tua (>25 th), tajuk mulai jarang
         if t < plant:
@@ -121,7 +172,7 @@ def simulate_series(scenario: str, key: str, end: date | None = None) -> Simulat
 
 def simulate_layers(scenario: str, key: str) -> dict[str, float]:
     rng = _rng(f"layers:{scenario}:{key}")
-    base = SCENARIOS.get(scenario, SCENARIOS["sawit_tua_stabil"])["layers"]
+    base = info(scenario)["layers"]
     out = {}
     for k, v in base.items():
         jitter = rng.normal(0, 2.5) if 3 < v < 97 else 0

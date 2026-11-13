@@ -203,9 +203,11 @@ def kawasan_policy_for(p: Plot) -> str | None:
     return "lokal" if isinstance(prot, dict) and prot.get("policy") == "lokal" else None
 
 
-def apply_analysis(db: Session, p: Plot, force_demo: bool = False, kawasan_policy: str | None = None) -> Analysis:
+def apply_analysis(db: Session, p: Plot, force_demo: bool = False, kawasan_policy: str | None = None,
+                   peta_policy: str = "auto") -> Analysis:
     policy = kawasan_policy or kawasan_policy_for(p)
-    r = analysis_svc.run(p.geometry, p.code, p.scenario, force_demo=force_demo, kawasan_policy=policy)
+    r = analysis_svc.run(p.geometry, p.code, p.scenario, force_demo=force_demo, kawasan_policy=policy,
+                         peta_policy=peta_policy)
     a = Analysis(
         plot_id=p.id, risk_level=r["risk_level"], headline=r["headline"], confidence=r["confidence"],
         evidence=r["evidence"], timeseries=r["timeseries"], data_source=r["data_source"], compute_ms=r["compute_ms"],
