@@ -13,7 +13,7 @@ from ..models import Plot, User
 from ..schemas import OverlapIn, PlotCreate, PlotUpdate, WitnessIn
 from ..security import require
 from ..services import analysis as analysis_svc
-from ..services import audit, geo, readiness
+from ..services import audit, geo, readiness, traces
 from ..services import plots as svc
 
 router = APIRouter(prefix="/api/plots", tags=["Kebun"])
@@ -202,7 +202,7 @@ def passport(plot_id: int, db: Session = Depends(get_db), _: User = Depends(requ
 def eudr_feature(p: Plot) -> dict:
     return {
         "type": "Feature",
-        "geometry": p.geometry,
+        "geometry": traces.to_traces_polygon(p.geometry),  # 6 desimal, tanpa titik kembar (aturan TRACES)
         "properties": {
             "ProducerCountry": "ID",
             "ProductionPlace": f"{p.label}, {p.farmer.village}",

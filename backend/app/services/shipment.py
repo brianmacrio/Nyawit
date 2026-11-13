@@ -1,7 +1,7 @@
 """Paket data uji tuntas per pengiriman ekspor (untuk importir yang membuat Due Diligence Statement EUDR).
 
 Isi paket mengikuti informasi yang diminta EUDR dari rantai pasok:
-  * geolokasi semua kebun asal (GeoJSON, koordinat >= 6 desimal),
+  * geolokasi semua kebun asal (GeoJSON 6 desimal, diperiksa terhadap aturan format TRACES; lihat traces.py),
   * rentang waktu produksi (tanggal pembelian TBS pertama-terakhir per kebun),
   * volume per kebun dan pengepul,
   * bukti bebas deforestasi (cek satelit vs 31 Des 2020) dan legalitas (bukti lahan, STDB, kawasan hutan),
@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..config import EUDR_CUTOFF
 from ..models import Delivery, Plot, Shipment, Transaction
-from . import readiness
+from . import readiness, traces
 from .plots import pending_inspections
 
 
@@ -63,6 +63,12 @@ def build(db: Session, buyer: str, destination: str, start: datetime, end: datet
         p = ts[0].plot
         r = readiness.evaluate(p, pid in pending)
         e = _plot_entry(p, ts, r)
+        if r["ready"]:
+            # kebun yang geometrinya akan ditolak Sistem Informasi EUDR tidak boleh ikut pengiriman
+            issues = traces.feature_problems(_feature(e, EUDR_CUTOFF.isoformat()))
+            if issues:
+                e["failed_checks"] = e["failed_checks"] + ["Geometri tidak lolos format TRACES: " + "; ".join(issues)]
+                r = {**r, "ready": False}
         (included if r["ready"] else excluded).append(e)
     included.sort(key=lambda e: e["plot_code"])
     excluded.sort(key=lambda e: -e["volume_kg"])
@@ -92,7 +98,8 @@ def build(db: Session, buyer: str, destination: str, start: datetime, end: datet
 def shipment_dict(s: Shipment, full: bool = False) -> dict:
     d = {"id": s.id, "code": s.code, "buyer": s.buyer, "destination": s.destination,
          "period_start": s.period_start.date().isoformat(), "period_end": s.period_end.date().isoformat(),
-         "created_by": s.created_by, "created_at": s.created_at.isoformat(timespec="seconds"), "summary": s.summary}
+         "created_by": s.created_by, "created_at": s.created_at.isoformat(timespec="seconds"), "summary": s.summary,
+         "traces": traces.validate_collection(_geojson(s))}
     if full:
         strip = lambda e: {k: v for k, v in e.items() if k != "geometry"}  # noqa: E731
         d["plots"] = [strip(e) for e in s.plots]
@@ -100,19 +107,27 @@ def shipment_dict(s: Shipment, full: bool = False) -> dict:
     return d
 
 
+def _traces_geometry(geom: dict) -> dict:
+    try:
+        return traces.to_traces_polygon(geom)
+    except traces.TracesError:
+        return geom  # dibiarkan apa adanya agar pemeriksaan format menandainya
+
+
+def _feature(e: dict, cutoff: str) -> dict:
+    return {"type": "Feature", "geometry": _traces_geometry(e["geometry"]), "properties": {
+        "PlotCode": e["plot_code"], "ProducerCountry": "ID", "ProductionPlace": e["village"],
+        "Area": e["area_ha"], "Commodity": "Oil palm fresh fruit bunches (HS 1511 chain)",
+        "ProductionStart": e["production_start"], "ProductionEnd": e["production_end"],
+        "VolumeKg": e["volume_kg"], "DeforestationCutOff": cutoff, "DeforestationFree": True,
+        "SatelliteCheckDate": e["analysis_date"], "LandProof": e["land_proof"], "STDB": e["stdb_status"],
+        "ForestAreaOverlapPct": e["kawasan_pct"], "ForestAreaMapSource": e["kawasan_source"],
+        "FieldVerification": e["verified"] or "tidak_terpilih_sampel",
+    }}
+
+
 def _geojson(s: Shipment) -> dict:
-    feats = []
-    for e in s.plots:
-        feats.append({"type": "Feature", "geometry": e["geometry"], "properties": {
-            "PlotCode": e["plot_code"], "ProducerCountry": "ID", "ProductionPlace": e["village"],
-            "Area": e["area_ha"], "Commodity": "Oil palm fresh fruit bunches (HS 1511 chain)",
-            "ProductionStart": e["production_start"], "ProductionEnd": e["production_end"],
-            "VolumeKg": e["volume_kg"], "DeforestationCutOff": s.summary["cutoff"], "DeforestationFree": True,
-            "SatelliteCheckDate": e["analysis_date"], "LandProof": e["land_proof"], "STDB": e["stdb_status"],
-            "ForestAreaOverlapPct": e["kawasan_pct"], "ForestAreaMapSource": e["kawasan_source"],
-            "FieldVerification": e["verified"] or "tidak_terpilih_sampel",
-        }})
-    return {"type": "FeatureCollection", "features": feats}
+    return {"type": "FeatureCollection", "features": [_feature(e, s.summary["cutoff"]) for e in s.plots]}
 
 
 def _csv(rows: list[dict], cols: list[str]) -> str:
@@ -125,7 +140,16 @@ def _csv(rows: list[dict], cols: list[str]) -> str:
 
 
 def package_zip(s: Shipment) -> bytes:
-    gj = json.dumps(_geojson(s), ensure_ascii=False, indent=1)
+    fc = _geojson(s)
+    gj = json.dumps(fc, ensure_ascii=False, indent=1)
+    check = traces.validate_collection(fc)
+    upload = json.dumps(traces.upload_collection(fc), ensure_ascii=False, indent=1)
+    checks_txt = "\n".join(f"  - {c}" for c in traces.CHECKS)
+    if check["ok"]:
+        traces_txt = f"LOLOS: {check['features']} kebun diperiksa, tidak ada yang akan ditolak sistem."
+    else:
+        traces_txt = "TIDAK LOLOS, perbaiki sebelum diunggah:\n" + "\n".join(
+            f"  - {pr['plot']}: {'; '.join(pr['issues'])}" for pr in check["problems"])
     cols = ["plot_code", "village", "area_ha", "centroid", "volume_kg", "n_purchases", "production_start",
             "production_end", "collectors", "land_proof", "stdb_status", "kawasan_pct", "kawasan_source", "verified",
             "analysis_date", "precision_level"]
@@ -139,7 +163,9 @@ Pembeli/importir : {s.buyer} ({s.destination})
 Periode pembelian: {s.period_start:%Y-%m-%d} s.d. {s.period_end:%Y-%m-%d}
 
 ISI
-- geolokasi_kebun.geojson : poligon {sm['n_included']} kebun asal (WGS84, 7 desimal) + rentang produksi & volume
+- geolokasi_kebun.geojson : poligon {sm['n_included']} kebun asal (WGS84, 6 desimal) + rentang produksi, volume, dan bukti
+- traces_unggah.geojson   : poligon yang sama, hanya properti yang dikenal Sistem Informasi EUDR (ProducerCountry,
+                            ProductionPlace, Area); berkas ini yang diunggah importir saat membuat pernyataan uji tuntas
 - ringkasan_kebun.csv     : data per kebun (tanpa nama petani; EUDR tidak mewajibkan data pribadi)
 - kebun_dikeluarkan.csv   : {sm['n_excluded']} kebun yang TBS-nya tidak boleh masuk pengiriman ini, beserta alasannya
 
@@ -149,9 +175,15 @@ ANGKA
 - TBS ditahan di pengepul       : {sm['held_kg']:,} kg
 - Total setoran ke pabrik       : {sm['delivered_kg']:,} kg
 
+FORMAT TRACES ({traces.SPEC})
+{traces_txt}
+Yang diperiksa:
+{checks_txt}
+ProducerName sengaja tidak diisi (opsional) agar paket tidak memuat data pribadi petani.
+
 METODE (ringkas)
 - Bebas deforestasi: riwayat NDVI Sentinel-2 sejak 2018 (COLD-lite) + peta global (convergence of evidence, Whisp FAO);
-  batas waktu {sm['cutoff']}.
+  dua peta hutan 2020 (JRC dan hutan alam SBTN) harus sepakat sebelum kebun dinyatakan berisiko; batas waktu {sm['cutoff']}.
 - Legalitas: bukti penguasaan lahan (sertifikat / surat desa / pernyataan + 2 saksi), status STDB, irisan dengan
   peta Kawasan Hutan Kementerian Kehutanan.
 - Verifikasi: sampel inspeksi lapangan berbasis risiko (rumus RSPO ISH: akar(n) x 2,5 x 1,5).
@@ -167,6 +199,7 @@ Sidik SHA-256 (geojson + csv): {digest}
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("README.txt", readme)
         z.writestr("geolokasi_kebun.geojson", gj)
+        z.writestr("traces_unggah.geojson", upload)
         z.writestr("ringkasan_kebun.csv", inc)
         z.writestr("kebun_dikeluarkan.csv", exc)
         z.writestr("ringkasan.json", json.dumps({**shipment_dict(s), "sha256": digest}, ensure_ascii=False, indent=1))

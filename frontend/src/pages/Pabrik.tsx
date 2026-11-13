@@ -80,6 +80,23 @@ function Shipments() {
             <div><b className="num" style={{ color: "var(--risiko)" }}>{kg(cur.summary.held_kg)}</b><span>ditahan di pengepul</span></div>
             <div><b className="num">{pct(cur.summary.eligible_share)}</b><span>dari {kg(cur.summary.delivered_kg)} setoran ke pabrik memenuhi syarat</span></div>
           </div>
+          {cur.traces && (
+            <details className="traces-check">
+              <summary className="small">
+                <span className={`tag ${cur.traces.ok ? "tag-rendah" : "tag-tinggi"}`}>
+                  {cur.traces.ok ? "Lolos format TRACES" : "Tidak lolos format TRACES"}
+                </span>{" "}
+                {cur.traces.ok
+                  ? `Geolokasi ${cur.traces.features} kebun siap diunggah ke Sistem Informasi EUDR`
+                  : `${cur.traces.problems.length} kebun akan ditolak sistem; perbaiki dulu`}
+              </summary>
+              <ul className="small excluded-list">
+                {cur.traces.problems.map((pr) => <li key={pr.plot ?? "-"}><b>{pr.plot}</b>: {pr.issues.join("; ")}</li>)}
+                {cur.traces.checks.map((c) => <li key={c}>{c}</li>)}
+              </ul>
+              <p className="small faint">Diperiksa terhadap {cur.traces.spec}. Paket memuat <span className="num">traces_unggah.geojson</span> untuk diunggah importir.</p>
+            </details>
+          )}
           {!!cur.excluded?.length && (
             <details>
               <summary className="small">Kebun yang dikeluarkan dan alasannya ({cur.excluded.length})</summary>
@@ -98,7 +115,7 @@ function Shipments() {
       {!!list?.length && (
         <div style={{ overflowX: "auto" }}>
           <table className="table">
-            <thead><tr><th>Kode</th><th>Pembeli</th><th>Periode</th><th>Masuk</th><th>Dipisahkan</th><th></th></tr></thead>
+            <thead><tr><th>Kode</th><th>Pembeli</th><th>Periode</th><th>Masuk</th><th>Dipisahkan</th><th>Format TRACES</th><th></th></tr></thead>
             <tbody>
               {list.map((s) => (
                 <tr key={s.id}>
@@ -107,6 +124,7 @@ function Shipments() {
                   <td className="small num">{dateLabel(s.period_start)} – {dateLabel(s.period_end)}</td>
                   <td className="num">{kg(s.summary.included_kg)} <span className="small faint">({s.summary.n_included} kebun)</span></td>
                   <td className="num">{kg(s.summary.excluded_kg)}</td>
+                  <td className="small">{s.traces ? (s.traces.ok ? "Lolos" : "Tidak lolos") : "-"}</td>
                   <td><a href={api.shipmentZipUrl(s.id)} download className="small">ZIP</a></td>
                 </tr>
               ))}

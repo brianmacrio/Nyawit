@@ -47,22 +47,42 @@ def perimeter_m(geom: dict[str, Any]) -> float:
     return to_local_m(geom, lat0, lng0).length
 
 
+COORD_DECIMALS = 6  # ~11 cm; sama dengan presisi yang disimpan Sistem Informasi EUDR (TRACES memotong ke 6 desimal)
+
+
+def _dedupe(ring: list[list[float]]) -> list[list[float]]:
+    out: list[list[float]] = []
+    for pt in ring:
+        if not out or out[-1] != pt:
+            out.append(pt)
+    return out
+
+
 def validate_polygon(geom: dict[str, Any]) -> dict[str, Any]:
-    """Menutup ring, memperbaiki self-intersection, membulatkan 7 desimal (~1 cm)."""
-    ring = [[round(float(x), 7), round(float(y), 7)] for x, y in _ring(geom)]
+    """Menutup ring, membuang titik kembar, memperbaiki self-intersection, membulatkan 6 desimal.
+
+    Yang disimpan = yang diekspor = yang diterima TRACES: dibulatkan sekali di sini, sehingga pembulatan
+    saat ekspor tidak lagi bisa mengubah bentuk kebun (titik kembar, sisi berimpit).
+    """
+    ring = _dedupe([[round(float(x), COORD_DECIMALS), round(float(y), COORD_DECIMALS)] for x, y in _ring(geom)])
+    if len(ring) > 1 and ring[0] == ring[-1]:
+        ring.pop()
     if len(ring) < 3:
         raise ValueError("Poligon minimal 3 titik")
-    if ring[0] != ring[-1]:
-        ring.append(ring[0])
+    ring.append(ring[0])
     poly = Polygon(ring)
     if not poly.is_valid:
         fixed = make_valid(poly)
-        if fixed.geom_type == "MultiPolygon":
-            fixed = max(fixed.geoms, key=lambda g: g.area)
+        if fixed.geom_type in ("MultiPolygon", "GeometryCollection"):
+            polys = [g for g in fixed.geoms if g.geom_type == "Polygon"]
+            fixed = max(polys, key=lambda g: g.area) if polys else fixed
         if fixed.geom_type != "Polygon":
             raise ValueError("Poligon tidak valid")
         poly = fixed
-    return {"type": "Polygon", "coordinates": [[[round(x, 7), round(y, 7)] for x, y in poly.exterior.coords]]}
+    if poly.area == 0:
+        raise ValueError("Poligon tidak punya luas")
+    out = _dedupe([[round(x, COORD_DECIMALS), round(y, COORD_DECIMALS)] for x, y in poly.exterior.coords])
+    return {"type": "Polygon", "coordinates": [out]}
 
 
 def overlap(geom_a: dict[str, Any], geom_b: dict[str, Any]) -> tuple[float, dict[str, Any] | None]:

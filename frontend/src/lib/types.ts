@@ -271,6 +271,14 @@ export interface Shipment {
     cutoff: string;
     rule: string;
   };
+  /** hasil pemeriksaan GeoJSON paket terhadap aturan format TRACES (Sistem Informasi EUDR) */
+  traces?: {
+    ok: boolean;
+    features: number;
+    problems: { plot: string | null; issues: string[] }[];
+    spec: string;
+    checks: string[];
+  };
   plots?: ShipmentEntry[];
   excluded?: ShipmentEntry[];
 }
@@ -452,7 +460,14 @@ export interface IndicatorTest {
   seconds: number;
   errors: string[];
   indicators: {
-    "1"?: { on: boolean; loss_after_pct: number; by_year: Record<string, number>; forest_2020_pct: number };
+    "1"?: {
+      on: boolean;
+      loss_after_pct: number;
+      by_year: Record<string, number>;
+      forest_2020_pct: number;
+      natural_forest_2020_pct?: number | null;
+      loss_on_forest_both_pct?: number | null;
+    };
     "2"?: { on: boolean; pct: number; label: string };
     "3"?: { on: boolean; pct: number; label: string };
   };

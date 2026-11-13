@@ -481,6 +481,8 @@ textarea { resize: vertical; min-height: 64px; }
 .ship-kpis b { font-size: 20px; }
 .ship-kpis span { font-size: 13px; color: var(--tinta-2); }
 .excluded-list { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+.traces-check summary { cursor: pointer; }
+.traces-check p { margin-top: 6px; }
 
 /* ---------- Beranda ---------- */
 .hero-check { display: flex; gap: 8px; margin-top: 16px; max-width: 420px; }
