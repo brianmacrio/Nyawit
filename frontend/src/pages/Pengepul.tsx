@@ -14,6 +14,30 @@ const DEMO_CODES = [
   ["PK-00006-E", "perlu cek"],
 ];
 
+/** Ringkasan 30 hari dari riwayat pembelian pengepul ini. */
+function Summary30({ history }: { history: Txn[] }) {
+  const since = Date.now() - 30 * 24 * 3600 * 1000;
+  const recent = history.filter((t) => new Date(t.created_at).getTime() >= since);
+  const total = recent.reduce((a, t) => a + t.weight_kg, 0);
+  const count = (d: Txn["decision"]) => recent.filter((t) => t.decision === d).length;
+  const held = recent.filter((t) => t.decision === "ditahan").reduce((a, t) => a + t.weight_kg, 0);
+  return (
+    <section className="panel panel-pad sum30" aria-label="Ringkasan 30 hari">
+      <h2 style={{ fontSize: 17 }}>Ringkasan 30 hari terakhir</h2>
+      <div className="sum30-grid">
+        <div><b className="num">{recent.length}</b><span>pembelian</span></div>
+        <div><b className="num">{kg(total)}</b><span>TBS dibeli</span></div>
+      </div>
+      <div className="sum30-split" aria-label="Hasil pengecekan">
+        <span><span className="tag tag-rendah">Diterima</span> <b className="num">{count("diterima")}</b></span>
+        <span><span className="tag tag-perlu_cek">Catatan</span> <b className="num">{count("catatan")}</b></span>
+        <span><span className="tag tag-tinggi">Ditahan</span> <b className="num">{count("ditahan")}</b></span>
+      </div>
+      {held > 0 && <p className="small muted">{kg(held)} ditahan dan tidak dihitung sebagai TBS tertelusur.</p>}
+    </section>
+  );
+}
+
 function CapacityBar({ used, upper, typical }: { used: number; upper: number; typical: number }) {
   const p = Math.min(100, (used / Math.max(upper, 1)) * 100);
   const color = p > 100 || used > upper ? "var(--risiko)" : p > 85 ? "var(--cek)" : "var(--aman)";
@@ -130,6 +154,7 @@ export default function Pengepul() {
       </div>
 
       <div className="collector">
+        <div className="collector-side">
         <section className="phone" aria-label="Aplikasi pengepul">
           {!found && (
             <>
@@ -217,6 +242,8 @@ export default function Pengepul() {
           )}
           {err && <Notice kind="danger">{err}</Notice>}
         </section>
+        <Summary30 history={history} />
+        </div>
 
         <section className="panel panel-pad" aria-label="Riwayat pembelian">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>

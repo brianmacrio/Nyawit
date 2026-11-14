@@ -50,7 +50,7 @@ export default function App() {
         {user ? (
           <div className="who-am-i">
             <Link to="/masuk" className="role" title="Ganti peran">{user.role_label}</Link>
-            <span className="name">{user.name}</span>
+            <span className="name" title={user.name}>{user.name}</span>
             <button className="nav-btn" onClick={() => logout()} aria-label="Keluar">
               <LogOut size={18} aria-hidden="true" /> Keluar
             </button>
