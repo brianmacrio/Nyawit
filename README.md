@@ -6,8 +6,8 @@
 |---|---|
 | Kategori | **Web** |
 | Subtema | **Local MSME & Creative Economy**: petani sawit swadaya (usaha mikro) tetap punya akses ke pasar ekspor. Dampak lingkungannya: mencegah buah dari hutan yang baru dibuka masuk rantai pasok |
-| Tim | _[isi nama tim]_ |
-| Anggota | _[isi: nama, peran, akun GitHub]_ |
+| Tim | **maaf pemula** |
+| Anggota | Brian Macrio Armando ([@brianmacrio](https://github.com/brianmacrio))<br>Dickent Affandy<br>Ekin Gunawan ([@EkinIOT](https://github.com/EkinIOT))<br>Jason Prayogo Chois's |
 | Aplikasi ter-deploy | _[isi URL setelah deploy, lihat bagian Deploy]_ |
 | Video demo | _[isi tautan YouTube]_ |
 
