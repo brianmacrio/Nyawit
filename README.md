@@ -8,7 +8,7 @@
 | Subtema | **Local MSME & Creative Economy**: petani sawit swadaya (usaha mikro) tetap punya akses ke pasar ekspor. Dampak lingkungannya: mencegah buah dari hutan yang baru dibuka masuk rantai pasok |
 | Tim | **maaf pemula** |
 | Anggota | Brian Macrio Armando ([@brianmacrio](https://github.com/brianmacrio))<br>Dickent Affandy<br>Ekin Gunawan ([@EkinIOT](https://github.com/EkinIOT))<br>Jason Prayogo Chois's |
-| Aplikasi ter-deploy | _[isi URL setelah deploy, lihat bagian Deploy]_ |
+| Aplikasi ter-deploy | **https://nyawit-production.up.railway.app** (Railway, dibangun dari `Dockerfile` repo ini) |
 | Video demo | _[isi tautan YouTube]_ |
 
 **Isi:** [Ringkasan](#ringkasan) · [Coba dalam 5 menit](#coba-dalam-5-menit-untuk-juri) · [Istilah](#istilah) ·
@@ -311,7 +311,11 @@ docker build -t pasporkebun .
 docker run -p 8000:8000 -e PK_SECRET_KEY=<string-acak> pasporkebun
 ```
 
-Render (gratis): buat akun di render.com, pilih **New + → Blueprint**, hubungkan repositori ini. `render.yaml` sudah mengatur
+Versi lomba berjalan di **Railway**: https://nyawit-production.up.railway.app. Railway membangun `Dockerfile` repo ini
+langsung dari GitHub (New Project → Deploy from GitHub repo → Generate Domain); kunci sesi dibuat acak otomatis saat server
+pertama kali mulai, dan data demo dibuat ulang bila container dibuat ulang.
+
+Alternatif, Render (gratis): buat akun di render.com, pilih **New + → Blueprint**, hubungkan repositori ini. `render.yaml` sudah mengatur
 Docker, health check, `PK_SECRET_KEY` acak, dan cookie Secure; image memakai jam WIB (`TZ=WIB-7`). Free plan tidur setelah
 15 menit tanpa akses (permintaan pertama butuh sekitar 1 menit), dan datanya dibuat ulang setiap server mulai.
 
