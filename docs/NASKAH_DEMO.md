@@ -9,6 +9,8 @@
   (3) pembuktian fungsi utama, (4) proses dan hasil AI secara langsung.
 - Rekaman utuh dan berkesinambungan. Boleh memotong waktu tunggu dan menambah teks/musik, tapi tidak boleh mengubah hasil.
 - Narasi boleh ada boleh tidak. Naskah ini memakai caption singkat.
+- **Target 4:30.** Tabel di bawah menghabiskan tepat 5:00 bila tidak ada yang dipotong; potong waktu tunggu (memuat peta,
+  analisis) saat menyunting dan periksa durasi akhir sebelum diunggah. Lewat 5:00 satu detik pun melanggar aturan.
 
 **Soal data simulasi.** Di mode demo, hanya deret NDVI per kebun yang simulasi berlabel (aplikasi menuliskannya di paspor).
 Lapisan bukti deforestasi (hutan JRC 2020, kehilangan tutupan Hansen) dan peta kawasan dibaca dari peta nyata. Agar tidak

@@ -42,6 +42,17 @@ hasil verifikasi lapangan. Paspor dipakai di empat titik:
 Paspor Kebun **bukan sertifikat ISPO/RSPO** (itu hanya boleh diterbitkan lembaga sertifikasi terakreditasi KAN/ASI).
 Paspor adalah bukti uji tuntas yang membuat sertifikasi kelompok dan pelaporan EUDR lebih murah.
 
+## Dampak dan rencana realisasi
+
+| | |
+|---|---|
+| Pengguna harian | Petugas koperasi (memetakan kebun dan memelihara paspor); pengepul di titik pembelian TBS |
+| Yang membayar | Pabrik / eksportir, karena merekalah yang wajib membuktikan asal TBS kepada importir UE. Petani gratis |
+| Manfaat bagi petani | TBS tetap bisa masuk rantai pasok ekspor; peta kebun dipakai lagi untuk STDB dan ISPO; peremajaan sawit (PSR) tidak dianggap deforestasi; ada jalur keberatan |
+| Pilot | 1 koperasi (sekitar 100 kebun) + 1 pabrik mitra sebelum kewajiban EUDR 30 Desember 2026 |
+| Ukuran keberhasilan | % kebun Siap EUDR (titik awal nasional sekitar 7%), % TBS tertelusur ke kebun, ton TBS ditahan di pengepul, biaya pemetaan per ha dibanding Rp415.000/ha |
+| Biaya menjalankan | Satu container CPU tanpa API AI berbayar (lihat Efisiensi sumber daya) |
+
 ## Fitur yang berhasil diimplementasikan
 
 1. **Masuk berperan** (koperasi, pengepul, pabrik, verifikator, admin) dengan akun demo satu klik untuk juri.
