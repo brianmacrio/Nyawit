@@ -4,7 +4,7 @@ import "@geoman-io/leaflet-geoman-free";
 import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
 import { Circle, CircleMarker, GeoJSON, MapContainer, Polygon, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import { useSearchParams } from "react-router-dom";
-import { BadgeCheck, Crosshair, LocateFixed, MousePointerClick, PenLine, Plus, Scissors, Search, Sparkles } from "lucide-react";
+import { BadgeCheck, ChevronDown, Crosshair, LocateFixed, MousePointerClick, PenLine, Plus, Scissors, Search, Sparkles } from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { FUNGSI_COLOR, FUNGSI_LEGEND, ha, KAWASAN_SOURCE_SHORT, kawasanText, RISK_COLOR, riskLabel } from "../lib/format";
@@ -157,6 +157,7 @@ export default function PetaKebun() {
   const [areas, setAreas] = useState<ProtectedArea[]>([]);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [overlays, setOverlays] = useState<Record<string, boolean>>({});
+  const [legendOpen, setLegendOpen] = useState(true);
   useEffect(() => {
     const on = (e: Event) => {
       const { name, on } = (e as CustomEvent<{ name: string; on: boolean }>).detail;
@@ -488,55 +489,63 @@ export default function PetaKebun() {
         </div>
       )}
 
-      <div className="float map-legend" aria-label="Keterangan peta">
-        <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.rendah, background: "#1e7a4b44" }} /> {riskLabel("rendah")}</div>
-        <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.perlu_cek, background: "#b7791f44" }} /> {riskLabel("perlu_cek")}</div>
-        <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.tinggi, background: "#b3261e44" }} /> {riskLabel("tinggi")}</div>
-        {areas.some((a) => a.is_demo) && (
-          <div className="legend-row">
-            <i className="swatch" style={{ borderColor: "#ff6b5e", borderStyle: "dashed" }} /> Batas ilustrasi (bukan peta resmi)
-          </div>
-        )}
-        {FUNGSI_LEGEND.filter((l) => l.codes.some((c) => kawasanCodes.has(c))).map((l) => (
-          <div className="legend-row" key={l.label}>
-            <i className="swatch" style={{ borderColor: l.color, borderStyle: "dashed", background: `${l.color}33` }} /> {l.label}
-          </div>
-        ))}
-        {kawasanCodes.size > 0 && <div className="legend-row faint small">Batas kawasan: Peta Kawasan Hutan KLHK 2017 (GFW)</div>}
-        {overlays[JRC_OVERLAY] && (
-          <div className="legend-row"><i className="swatch" style={{ borderColor: "#7266f9", background: "#7266f999" }} /> Hutan 2020 (JRC)</div>
-        )}
-        {overlays[SBTN_OVERLAY] && (
-          <div className="legend-row"><i className="swatch" style={{ borderColor: "#2c6639", background: "#2c663999" }} /> Hutan alam 2020 (SBTN)</div>
-        )}
-        {overlays[LOSS_OVERLAY] && (
+      <div className="float map-legend" aria-label="Keterangan peta" data-open={legendOpen || undefined}>
+        <button type="button" className="legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((o) => !o)}>
+          Keterangan peta
+          <ChevronDown aria-hidden="true" />
+        </button>
+        {legendOpen && (
           <>
-            <div className="legend-row"><i className="swatch" style={{ borderColor: "#e3528c", background: "#e3528ccc" }} /> Tutupan pohon hilang 2021–2025</div>
-            <div className="legend-row faint small" style={{ maxWidth: 230 }}>
-              Belum tentu deforestasi: peremajaan sawit juga tercatat. Berisiko bila lahannya hutan pada 2020 menurut dua peta (JRC dan SBTN).
-            </div>
-          </>
-        )}
-        {gfwStatus.state === "loading" && <div className="legend-row faint">Mendeteksi kawasan hutan di area ini…</div>}
-        {gfwStatus.state === "zoom" && <div className="legend-row faint">Perbesar peta untuk melihat kawasan hutan.</div>}
-        {gfwStatus.state === "error" && (
-          <div className="legend-row legend-error" role="status">Peta kawasan KLHK 2017 (GFW) tidak bisa dimuat: {gfwStatus.message}</div>
-        )}
-        {kawasanLayer === "loading" && <div className="legend-row faint">Memuat peta kawasan Kemenhut…</div>}
-        {kawasanLayer === "ok" && (
-          <>
-            <div className="legend-row faint small">
-              Peta Kemenhut{meta?.kawasan?.layer_names?.length ? ` (${meta.kawasan.layer_names.join(", ")})` : ""}:
-            </div>
-            {(meta?.kawasan?.legend?.length ? meta.kawasan.legend : []).map((l) => (
+            <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.rendah, background: "#1e7a4b44" }} /> {riskLabel("rendah")}</div>
+            <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.perlu_cek, background: "#b7791f44" }} /> {riskLabel("perlu_cek")}</div>
+            <div className="legend-row"><i className="swatch" style={{ borderColor: RISK_COLOR.tinggi, background: "#b3261e44" }} /> {riskLabel("tinggi")}</div>
+            {areas.some((a) => a.is_demo) && (
+              <div className="legend-row">
+                <i className="swatch" style={{ borderColor: "#ff6b5e", borderStyle: "dashed" }} /> Batas ilustrasi (bukan peta resmi)
+              </div>
+            )}
+            {FUNGSI_LEGEND.filter((l) => l.codes.some((c) => kawasanCodes.has(c))).map((l) => (
               <div className="legend-row" key={l.label}>
-                <i className="swatch" style={{ borderColor: "#0003", background: `rgb(${l.rgb.join(",")})` }} /> {l.label}
+                <i className="swatch" style={{ borderColor: l.color, borderStyle: "dashed", background: `${l.color}33` }} /> {l.label}
               </div>
             ))}
-            {!meta?.kawasan?.legend?.length && (
-              <div className="legend-row"><i className="swatch" style={{ borderColor: "#2f6f4f", background: "#7fbf7f88" }} /> Kawasan hutan (Kemenhut, 1:250.000)</div>
+            {kawasanCodes.size > 0 && <div className="legend-row faint small">Batas kawasan: Peta Kawasan Hutan KLHK 2017 (GFW)</div>}
+            {overlays[JRC_OVERLAY] && (
+              <div className="legend-row"><i className="swatch" style={{ borderColor: "#7266f9", background: "#7266f999" }} /> Hutan 2020 (JRC)</div>
+            )}
+            {overlays[SBTN_OVERLAY] && (
+              <div className="legend-row"><i className="swatch" style={{ borderColor: "#2c6639", background: "#2c663999" }} /> Hutan alam 2020 (SBTN)</div>
+            )}
+            {overlays[LOSS_OVERLAY] && (
+              <>
+                <div className="legend-row"><i className="swatch" style={{ borderColor: "#e3528c", background: "#e3528ccc" }} /> Tutupan pohon hilang 2021–2025</div>
+                <div className="legend-row faint small" style={{ maxWidth: 230 }}>
+                  Belum tentu deforestasi: peremajaan sawit juga tercatat. Berisiko bila lahannya hutan pada 2020 menurut dua peta (JRC dan SBTN).
+                </div>
+              </>
+            )}
+            {gfwStatus.state === "loading" && <div className="legend-row faint">Mendeteksi kawasan hutan di area ini…</div>}
+            {gfwStatus.state === "zoom" && <div className="legend-row faint">Perbesar peta untuk melihat kawasan hutan.</div>}
+            {kawasanLayer === "loading" && <div className="legend-row faint">Memuat peta kawasan Kemenhut…</div>}
+            {kawasanLayer === "ok" && (
+              <>
+                <div className="legend-row faint small">
+                  Peta Kemenhut{meta?.kawasan?.layer_names?.length ? ` (${meta.kawasan.layer_names.join(", ")})` : ""}:
+                </div>
+                {(meta?.kawasan?.legend?.length ? meta.kawasan.legend : []).map((l) => (
+                  <div className="legend-row" key={l.label}>
+                    <i className="swatch" style={{ borderColor: "#0003", background: `rgb(${l.rgb.join(",")})` }} /> {l.label}
+                  </div>
+                ))}
+                {!meta?.kawasan?.legend?.length && (
+                  <div className="legend-row"><i className="swatch" style={{ borderColor: "#2f6f4f", background: "#7fbf7f88" }} /> Kawasan hutan (Kemenhut, 1:250.000)</div>
+                )}
+              </>
             )}
           </>
+        )}
+        {gfwStatus.state === "error" && (
+          <div className="legend-row legend-error" role="status">Peta kawasan KLHK 2017 (GFW) tidak bisa dimuat: {gfwStatus.message}</div>
         )}
         {kawasanLayer === "error" && (
           <div className="legend-row legend-error" role="status">
