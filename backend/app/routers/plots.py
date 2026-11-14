@@ -143,7 +143,19 @@ def update_plot(plot_id: int, body: PlotUpdate, db: Session = Depends(get_db), u
     before = {"land_proof": p.land_proof, "stdb": p.stdb_status, "dispute": p.dispute, "area_ha": round(p.area_ha, 3)}
     reanalyze = False
     if body.geometry is not None:
-        svc.set_geometry(p, body.geometry.model_dump())
+        try:
+            g = geo.validate_polygon(body.geometry.model_dump())
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from e
+        big = [c for c in svc.overlaps(db, g, p.id) if c["overlap_ha"] >= 0.05]
+        if big:  # aturan yang sama dengan pendaftaran kebun baru
+            return JSONResponse(status_code=409, content={
+                "detail": "Batas baru bertumpuk dengan kebun lain. Pakai 'Rapikan dengan kebun tetangga' atau musyawarahkan batasnya.",
+                "overlaps": big,
+            })
+        svc.set_geometry(p, g)
+        if SATELLITE_MODE != "live":  # deret NDVI simulasi harus mengikuti lokasi baru, bukan lokasi lama
+            p.scenario = analysis_svc.scenario_for(g, None, svc.kawasan_policy_for(p))
         reanalyze = True
     if body.planting_year_declared is not None:
         p.planting_year_declared = body.planting_year_declared
@@ -226,7 +238,8 @@ def eudr_feature(p: Plot) -> dict:
             "AnalysisDate": p.analyzed_at.date().isoformat() if p.analyzed_at else None,
             "LandProof": p.land_proof,
             "STDB": p.stdb_status,
-            "AnalysisMethod": "PasporKebun convergence-of-evidence + COLD-lite Sentinel-2",
+            "AnalysisMethod": ("PasporKebun convergence-of-evidence + COLD-lite Sentinel-2" if SATELLITE_MODE == "live" else
+                               "PasporKebun convergence-of-evidence (JRC + SBTN + Hansen GFC); NDVI simulated in demo mode"),
         },
     }
 

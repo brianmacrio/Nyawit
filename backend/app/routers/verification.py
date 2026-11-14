@@ -124,7 +124,8 @@ def decide(appeal_id: int, body: AppealDecisionIn, db: Session = Depends(get_db)
 
 @router.get("/audit")
 def audit_list(entity: str = "kebun", entity_id: int | None = None, limit: int = 50, db: Session = Depends(get_db),
-               _: User = Depends(require())):
+               _: User = Depends(require("verifikator", "koperasi", "pabrik"))):
+    """Riwayat kejadian. Pengepul tidak boleh membaca pembelian pengepul lain (minimasi data)."""
     if entity_id is None:
         from ..models import AuditEvent
 

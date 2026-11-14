@@ -315,3 +315,16 @@ def test_demo_plots_violate_each_map_indicator(c):
     seeded = [p for p in by_name.values() if p["code"].startswith("PK-000")]
     replant = [p for p in seeded if "peremajaan" in (p["risk_headline"] or "")]
     assert len(replant) >= 5 and all(p["risk_level"] == "rendah" for p in replant)
+
+
+def test_boundary_edit_rejects_overlap_and_audit_list_is_role_limited(c):
+    """Mengubah batas kebun memakai aturan tumpang tindih yang sama dengan pendaftaran; pengepul tidak membaca riwayat."""
+    as_(c, "koperasi")
+    plots = c.get("/api/plots").json()
+    a, b = plots[0], plots[1]
+    r = c.patch(f"/api/plots/{a['id']}", json={"geometry": b["geometry"]})
+    assert r.status_code == 409 and r.json()["overlaps"]
+    assert c.get(f"/api/plots/{a['id']}").json()["area_ha"] == a["area_ha"]  # batas lama tidak berubah
+    assert c.get("/api/audit?limit=5").status_code == 200
+    as_(c, "pengepul")
+    assert c.get("/api/audit?limit=5").status_code == 403
