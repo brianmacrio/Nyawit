@@ -1,11 +1,39 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ClipboardCheck, Factory, Map as MapIcon, Scale, Search } from "lucide-react";
+import { ChevronDown, ClipboardCheck, Factory, Map as MapIcon, Scale, Search, type LucideIcon } from "lucide-react";
 import { Emblem, Stamp } from "../components/ui";
+
+const STEPS: { icon: LucideIcon; title: string; who: string; text: string }[] = [
+  {
+    icon: MapIcon,
+    title: "Petakan kebun",
+    who: "Koperasi & pendamping petani",
+    text: "Berdiri di kebun, tekan satu tombol: GPS mencatat titik, AI menggambar batas, tetangga menjadi saksi. Satelit lalu memeriksa riwayat lahan sejak 2018 dan peta kawasan hutan.",
+  },
+  {
+    icon: Scale,
+    title: "Pindai saat membeli",
+    who: "Pengepul / RAM",
+    text: "Pengepul memindai kartu QR petani dan mencatat berat. Volume yang mustahil untuk luas dan umur kebun itu langsung ditahan.",
+  },
+  {
+    icon: ClipboardCheck,
+    title: "Periksa sampel",
+    who: "Verifikator independen",
+    text: "Verifikator independen mengunjungi kebun yang dipilih berdasarkan risiko, mengambil foto bergeotag, dan memutuskan keberatan petani.",
+  },
+  {
+    icon: Factory,
+    title: "Kirim dengan bukti",
+    who: "Pabrik kelapa sawit & eksportir",
+    text: "Pabrik memisahkan TBS dari kebun yang belum siap dan mengunduh paket data uji tuntas untuk importir Eropa.",
+  },
+];
 
 export default function Beranda() {
   const nav = useNavigate();
   const [code, setCode] = useState("");
+  const [open, setOpen] = useState<Record<number, boolean>>({});
   return (
     <div className="home">
       <section className="hero">
@@ -46,39 +74,44 @@ export default function Beranda() {
         </div>
       </section>
 
-      <section className="facts-line" aria-label="Fakta masalah">
+      <section className="facts-line facts-cards" aria-label="Fakta masalah">
         <div><b>7%</b><span>kebun sawit rakyat yang siap memenuhi EUDR (APKASINDO, Okt 2026)</span></div>
         <div><b>7 dari 10</b><span>petani belum punya data spasial kebun (INDEF)</span></div>
         <div><b>41%</b><span>dari 16,8 juta ha kebun sawit Indonesia adalah kebun rakyat</span></div>
       </section>
 
       <section aria-label="Cara kerja">
-        <h2 style={{ marginBottom: 16 }}>Satu paspor, empat pihak yang saling memeriksa</h2>
-        <div className="steps four">
-          <div className="step">
-            <MapIcon color="var(--sampul)" aria-hidden="true" />
-            <h3>Petakan kebun</h3>
-            <p className="muted">Berdiri di kebun, tekan satu tombol: GPS mencatat titik, AI menggambar batas, tetangga menjadi saksi. Satelit lalu memeriksa riwayat lahan sejak 2018 dan peta kawasan hutan.</p>
-            <span className="who">Koperasi &amp; pendamping petani</span>
-          </div>
-          <div className="step">
-            <Scale color="var(--sampul)" aria-hidden="true" />
-            <h3>Pindai saat membeli</h3>
-            <p className="muted">Pengepul memindai kartu QR petani dan mencatat berat. Volume yang mustahil untuk luas dan umur kebun itu langsung ditahan.</p>
-            <span className="who">Pengepul / RAM</span>
-          </div>
-          <div className="step">
-            <ClipboardCheck color="var(--sampul)" aria-hidden="true" />
-            <h3>Periksa sampel</h3>
-            <p className="muted">Verifikator independen mengunjungi kebun yang dipilih berdasarkan risiko, mengambil foto bergeotag, dan memutuskan keberatan petani.</p>
-            <span className="who">Verifikator independen</span>
-          </div>
-          <div className="step">
-            <Factory color="var(--sampul)" aria-hidden="true" />
-            <h3>Kirim dengan bukti</h3>
-            <p className="muted">Pabrik memisahkan TBS dari kebun yang belum siap dan mengunduh paket data uji tuntas untuk importir Eropa.</p>
-            <span className="who">Pabrik kelapa sawit &amp; eksportir</span>
-          </div>
+        <h2 className="acc-group acc-group-solo">Satu paspor, empat pihak yang saling memeriksa</h2>
+        <p className="small muted tcards-hint">Arahkan kursor atau klik kartu untuk melihat penjelasannya.</p>
+        <div className="tcards">
+          {STEPS.map((st, i) => {
+            const Icon = st.icon;
+            return (
+              <div key={st.title} className="tcard" data-open={open[i] || undefined}>
+                <h3 className="tcard-h">
+                  <button
+                    type="button"
+                    aria-expanded={!!open[i]}
+                    aria-controls={`tcard-${i}`}
+                    onClick={() => setOpen((o) => ({ ...o, [i]: !o[i] }))}
+                  >
+                    <span className="tcard-top">
+                      <span className="tcard-ic"><Icon aria-hidden="true" /></span>
+                      <span className="tcard-no">Langkah {i + 1}</span>
+                      <ChevronDown className="tcard-chev" aria-hidden="true" />
+                    </span>
+                    <span className="tcard-title">{st.title}</span>
+                    <span className="pill tcard-who">{st.who}</span>
+                  </button>
+                </h3>
+                <div className="tcard-body" id={`tcard-${i}`}>
+                  <div>
+                    <p>{st.text}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </section>
       <p className="small faint">
