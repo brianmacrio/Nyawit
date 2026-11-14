@@ -10,6 +10,7 @@ Dua lapis:
 """
 from __future__ import annotations
 
+import copy
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 
@@ -128,13 +129,31 @@ MEANINGFUL_MIN = {"kg_per_ha_month": 1800, "flagged_share": 0.10, "untraced_shar
                   "near_cap_share": 0.15, "txn_per_plot_month": 3.5}
 
 
+_SCORE_CACHE: dict[tuple, dict[int, dict]] = {}
+
+
 def score_collectors(features: dict[int, dict[str, float]]) -> dict[int, dict]:
-    """Isolation Forest + penjelasan z-score robust. Mengembalikan skor 0-100 per pengepul."""
+    """Isolation Forest + penjelasan z-score robust. Mengembalikan skor 0-100 per pengepul.
+
+    Model dilatih ulang hanya bila data pengepul berubah: random_state tetap, jadi hasil untuk data yang sama selalu sama
+    dan bisa dipakai lagi (dasbor pabrik dibuka berulang tanpa transaksi baru tidak perlu melatih 150 pohon lagi).
+    """
     ids = list(features)
     if not ids:
         return {}
     keys = list(FEATURE_LABELS)
     X = np.array([[features[i].get(k, 0.0) for k in keys] for i in ids], dtype=float)
+    key = (tuple(ids), X.round(9).tobytes())
+    if key in _SCORE_CACHE:
+        return copy.deepcopy(_SCORE_CACHE[key])
+    out = _score(ids, keys, X)
+    if len(_SCORE_CACHE) >= 32:
+        _SCORE_CACHE.clear()
+    _SCORE_CACHE[key] = copy.deepcopy(out)
+    return out
+
+
+def _score(ids: list[int], keys: list[str], X: np.ndarray) -> dict[int, dict]:
     med = np.median(X, axis=0)
     mad = 1.4826 * np.median(np.abs(X - med), axis=0)
     scale = np.where(mad > 1e-9, mad, np.where(np.std(X, axis=0) > 1e-9, np.std(X, axis=0), 1.0))
