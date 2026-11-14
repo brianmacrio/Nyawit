@@ -131,11 +131,12 @@ def _kawasan_item(kw: dict, strict: bool) -> EvidenceItem:
 
 def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_pct: float,
            kawasan: dict | None = None, strict: bool = False, forest_map: str | None = None,
-           layer_sources: dict[str, str] | None = None) -> RiskDecision:
+           layer_sources: dict[str, str] | None = None, ts_source: str = "Sentinel-2 L2A") -> RiskDecision:
     """`kawasan` = hasil services.kawasan.lookup().to_dict(); `strict` = mode live (peta resmi wajib dicek).
 
     `forest_map="jrc"`: lapisan tutupan 2020 berasal dari peta HUTAN JRC GFC2020 yang sudah mengecualikan
     kebun sawit, jadi "ada tutupan + kehilangan sesudah 2020" tidak perlu menunggu peta komoditas.
+    `ts_source`: asal deret NDVI yang ditulis di paspor (mode demo menyebut simulasi, bukan Sentinel-2).
     """
     src = {**LAYER_SOURCES, **(layer_sources or {})}
     jrc = forest_map == "jrc"
@@ -208,12 +209,14 @@ def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_p
         )
     )
     if ts is None or ts.n_obs == 0:
-        items.append(EvidenceItem("timeseries", "Analisis time series NDVI (AI)", "tidak tersedia", "tidak_tersedia", "Sentinel-2"))
+        items.append(EvidenceItem("timeseries", "Analisis time series NDVI (AI)", "tidak tersedia", "tidak_tersedia", ts_source))
     else:
+        not_forest = (jrc and tree is not None and tree <= T_TREE and (nat is None or nat <= T_TREE))
         if clearing_after:
             b = clearing_after[-1]
             val = f"pembukaan lahan {bulan(b.date)} (NDVI turun {dec(abs(b.magnitude), 2)})"
-            verdict = "mendukung_risiko"
+            # pembukaan di lahan yang bukan hutan pada 2020 = peremajaan/panen, bukan bukti deforestasi
+            verdict = "netral" if not_forest else "mendukung_risiko"
         elif clearing_before:
             b = clearing_before[-1]
             val = f"pembukaan lahan {bulan(b.date)}, sebelum batas"
@@ -222,9 +225,11 @@ def decide(layers: dict[str, float | None], ts: ChangeResult | None, protected_p
             val = f"stabil, tanpa pembukaan lahan ({ts.n_obs} citra, {dec(ts.span_years)} th)"
             verdict = "mendukung_aman" if ts_ok else "netral"
         detail = "COLD-lite: model harmonik robust; perubahan dikonfirmasi oleh 5 citra berturut-turut."
+        if clearing_after and not_forest:
+            detail += " Lahannya bukan hutan pada 2020 menurut peta hutan, jadi pembukaan ini peremajaan, bukan deforestasi."
         if not ts_ok:
             detail += " Citra bebas awan terlalu sedikit sehingga bobot bukti ini rendah."
-        items.append(EvidenceItem("timeseries", "Analisis time series NDVI 2018-kini (AI)", val, verdict, "Sentinel-2 L2A", detail))
+        items.append(EvidenceItem("timeseries", "Analisis time series NDVI 2018-kini (AI)", val, verdict, ts_source, detail))
 
     # ---- Aturan 0: legalitas (status kawasan hutan) ----
     if protected_pct > T_PROTECTED:

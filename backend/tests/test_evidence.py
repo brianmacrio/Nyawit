@@ -45,3 +45,15 @@ def test_unreadable_real_map_never_yields_safe_from_simulation(monkeypatch):
     r = analysis.run(geom, "PK-UJI", "sawit_tua_stabil", force_demo=True, kawasan_policy="lokal")
     assert r["risk_level"] == "perlu_cek" and r["evidence"]["rule"] == "aturan-peta-belum-terbaca"
     assert "simulasi" in r["headline"]
+
+
+def test_ndvi_clearing_on_non_forest_land_is_not_risk_evidence():
+    """Pembukaan lahan yang terdeteksi NDVI di lahan bukan hutan 2020 (kedua peta) = peremajaan, bukan bukti risiko."""
+    s = simulate_series("peremajaan_2023", "e")
+    layers = {"tree_cover_2020": 0.0, "natural_forest_2020": 0.0, "commodity_2020": None,
+              "disturbance_before_2021": 0.0, "disturbance_after_2020": 80.0,
+              "loss_after_on_forest": 0.0, "loss_after_on_forest_both": 0.0, "loss_after_on_natural": 0.0}
+    d = decide(layers, detect_changes(s.dates, s.ndvi), 0.0, forest_map="jrc", ts_source="Simulasi berlabel")
+    ts = next(i for i in d.items if i.key == "timeseries")
+    assert d.risk_level == "rendah" and ts.verdict == "netral" and "peremajaan" in ts.detail
+    assert ts.source == "Simulasi berlabel"  # mode demo tidak boleh mengaku membaca Sentinel-2

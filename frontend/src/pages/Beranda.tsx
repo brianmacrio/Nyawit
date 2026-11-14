@@ -63,7 +63,7 @@ export default function Beranda() {
             <div>
               <h2 style={{ fontSize: 22 }}>Budi Santoso</h2>
               <p className="muted">Kebun Desa Sungai Harapan, 1,98 ha</p>
-              <p style={{ marginTop: 10 }}>Siap EUDR: 5 dari 5 syarat terpenuhi. Sudah kebun sawit sebelum 2021, diperiksa dari 190 citra Sentinel-2.</p>
+              <p style={{ marginTop: 10 }}>Siap EUDR: 5 dari 5 syarat terpenuhi. Sudah kebun sawit sebelum 2021 menurut dua peta hutan dan riwayat NDVI 2018-kini.</p>
             </div>
             <Stamp risk="rendah" sub="keyakinan 90%" />
           </div>

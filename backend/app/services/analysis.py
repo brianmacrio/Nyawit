@@ -24,6 +24,9 @@ def protected_overlap(geom: dict, policy: str | None = None) -> tuple[float, str
     return r.pct, r.name
 
 
+TS_SOURCE_DEMO = "Simulasi berlabel (mode demo), mengikuti peta nyata"
+
+
 def scenario_for(geom: dict, requested: str | None, policy: str | None = None, peta_policy: str = "auto") -> str:
     """Skenario deret NDVI simulasi (mode demo) untuk kebun baru.
 
@@ -93,7 +96,8 @@ def run(geom: dict, plot_code: str, scenario: str | None, force_demo: bool = Fal
 
     ts = timeseries.detect_changes(dates, values, cutoff=EUDR_CUTOFF) if dates else None
     decision = evidence.decide(layers or {}, ts, kw["pct"], kawasan=kw, strict=mode == "live", forest_map=forest_map,
-                               layer_sources=layer_sources)
+                               layer_sources=layer_sources,
+                               ts_source="Sentinel-2 L2A" if mode == "live" else TS_SOURCE_DEMO)
     if map_unread and decision.risk_level == "rendah":
         # Tanpa peta hutan nyata, status Aman hanya bersandar pada angka simulasi. Lebih jujur menahan keputusan.
         decision.risk_level, decision.rule, decision.confidence = "perlu_cek", "aturan-peta-belum-terbaca", 0.4

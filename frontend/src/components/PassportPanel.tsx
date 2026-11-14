@@ -384,7 +384,8 @@ export function PassportPanel({
           <div className="section">
             <h3>Riwayat vegetasi {a.timeseries.dates?.[0]?.slice(0, 4)}–kini</h3>
             <p className="small muted" style={{ marginBottom: 8 }}>
-              NDVI tiap citra Sentinel-2. Garis hijau = model AI (COLD-lite); garis merah = pembukaan lahan terdeteksi.
+              {a.data_source === "live" ? "NDVI tiap citra Sentinel-2." : "NDVI simulasi berlabel (mode demo), bentuknya mengikuti peta nyata."}{" "}
+              Garis hijau = model AI (COLD-lite); garis merah = pembukaan lahan terdeteksi.
             </p>
             {a.timeseries.dates ? <NdviChart ts={a.timeseries} cutoff={a.evidence.cutoff} /> : null}
             {a.timeseries.planting_note && <p className="small" style={{ marginTop: 6 }}>{a.timeseries.planting_note}</p>}
