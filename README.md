@@ -5,13 +5,75 @@
 | | |
 |---|---|
 | Kategori | **Web** |
-| Subtema | Local MSME & Creative Economy (akses pasar ekspor petani swadaya), berdampak pada Green Environment & Sustainability |
+| Subtema | **Local MSME & Creative Economy**: petani sawit swadaya (usaha mikro) tetap punya akses ke pasar ekspor. Dampak lingkungannya: mencegah buah dari hutan yang baru dibuka masuk rantai pasok |
 | Tim | _[isi nama tim]_ |
 | Anggota | _[isi: nama, peran, akun GitHub]_ |
 | Aplikasi ter-deploy | _[isi URL setelah deploy, lihat bagian Deploy]_ |
 | Video demo | _[isi tautan YouTube]_ |
 
+**Isi:** [Ringkasan](#ringkasan) · [Coba dalam 5 menit](#coba-dalam-5-menit-untuk-juri) · [Istilah](#istilah) ·
+[Masalah](#masalah) · [Solusi](#solusi-dan-target-pengguna) · [Cara kerja](#cara-kerja-dari-kebun-sampai-pengiriman) ·
+[Fitur](#fitur-yang-berhasil-diimplementasikan) · [Arsitektur](#arsitektur-sistem) · [Teknologi](#teknologi) ·
+[Instalasi](#instalasi-dan-menjalankan-laptop-windows) · [Akun demo](#akun-demonstrasi) · [AI](#dokumentasi-penggunaan-ai) ·
+[Data nyata vs simulasi](#data-nyata-vs-simulasi) · [Keamanan](#keamanan-dan-privasi) · [Keterbatasan](#keterbatasan-yang-kami-ketahui) ·
+[Atribusi](#atribusi)
+
 ---
+
+## Ringkasan
+
+PasporKebun adalah aplikasi web untuk koperasi petani sawit swadaya. Mulai 30 Desember 2026, minyak sawit yang dijual ke
+Uni Eropa harus bisa dibuktikan berasal dari kebun yang jelas lokasinya, legal, dan tidak membuka hutan setelah 2020.
+Petani kecil umumnya tidak punya peta kebun maupun bukti itu, sehingga buahnya terancam tidak bisa dijual ke pabrik eksportir.
+
+Aplikasi ini membuat **paspor digital untuk setiap kebun**:
+
+1. Petugas koperasi memetakan kebun bersama petani: titik GPS, **AI menggambar draf batas** dari citra satelit, lalu
+   petani dan tetangga sebagai saksi mengoreksinya.
+2. Server mengecek kebun ke **peta kawasan hutan resmi** dan **dua peta hutan satelit**, lalu memberi status
+   **Aman / Perlu cek / Berisiko** beserta checklist **Siap EUDR** yang menyebut apa yang masih kurang.
+3. Saat buah dijual, **pengepul memindai QR** paspor. Volume yang mustahil untuk luas dan umur kebun itu **ditahan**, jadi
+   buah dari kebun lain tidak bisa menumpang paspor.
+4. **Verifikator** mendatangi sampel kebun berbasis risiko, dan **pabrik** mengunduh paket bukti untuk importir Eropa.
+
+| | |
+|---|---|
+| ![Paspor kebun berstatus Berisiko dengan checklist Siap EUDR](docs/img/paspor.jpg) | ![Pengepul menahan 9 ton dari kebun 2 hektar](docs/img/pengepul.jpg) |
+| **Paspor kebun**: cap Berisiko, alasannya, dan 5 syarat Siap EUDR | **Pengepul**: 9 t dari kebun 2 ha langsung ditahan |
+| ![Dasbor pabrik dengan porsi TBS tertelusur dan skor anomali pengepul](docs/img/pabrik.jpg) | ![Beranda PasporKebun](docs/img/beranda.jpg) |
+| **Pabrik**: TBS tertelusur, pengepul diurutkan menurut skor anomali AI | **Beranda** dan cek paspor publik |
+
+## Coba dalam 5 menit (untuk juri)
+
+Buka aplikasi ter-deploy (tautan di tabel atas) atau jalankan lokal (lihat [Instalasi](#instalasi-dan-menjalankan-laptop-windows)).
+
+1. **Masuk dan coba** → klik kartu **Petugas koperasi** (tanpa mengetik kata sandi).
+2. **Peta kebun** → klik **Joko Susilo (PK-00004-U)**: cap Berisiko karena hutan dibuka Juni 2025, checklist Siap EUDR,
+   dan bukti satelit beserta sumbernya.
+3. Klik **Sutrisno Wibowo (PK-00003-P)**: tutupan pohon hilang tahun 2023, tetapi lahannya bukan hutan pada 2020, jadi
+   tetap Aman (peremajaan sawit, bukan deforestasi).
+4. **Daftarkan kebun** → **Tunjuk di peta** → klik tengah sebuah kebun di citra: AI menggambar draf batas. Isi data lalu
+   simpan; paspor langsung dianalisis.
+5. Keluar, lalu di halaman Masuk klik kartu **UD Sinar Jaya** (pengepul) → ketik `PK-00001-F`, **Cari**, berat `9000`
+   → **Ditahan** karena melebihi kapasitas kebun.
+6. Masuk sebagai **Pabrik** → lihat skor anomali pengepul → **Buat paket** pengiriman ekspor (ZIP).
+7. **Cara kerja AI** → **Jalankan uji sekarang**: enam kebun uji diperiksa ke peta online saat itu juga (butuh internet).
+
+## Istilah
+
+| Istilah | Arti |
+|---|---|
+| EUDR | Regulasi Uni Eropa anti-deforestasi (2023/1115). Komoditas seperti sawit hanya boleh masuk UE bila bebas deforestasi setelah 31 Des 2020, legal, dan disertai geolokasi kebun |
+| Uji tuntas (*due diligence*) | Kumpulan bukti yang wajib disiapkan importir untuk membuktikan syarat EUDR |
+| TBS | Tandan buah segar sawit, yang dijual petani |
+| Pengepul | Pedagang perantara yang membeli TBS dari banyak petani lalu menyetorkannya ke pabrik |
+| PKS | Pabrik kelapa sawit, pengolah TBS menjadi minyak sawit mentah |
+| STDB | Surat Tanda Daftar Budidaya, pendaftaran kebun rakyat di bawah 25 ha ke pemerintah daerah |
+| ISPO / RSPO | Sertifikasi sawit berkelanjutan (wajib nasional / sukarela internasional) |
+| PSR | Peremajaan sawit rakyat: menebang sawit tua untuk ditanam ulang. Terlihat seperti "pohon hilang" di citra satelit, padahal bukan deforestasi |
+| Kawasan hutan / APL | Lahan yang ditetapkan negara sebagai hutan / Areal Penggunaan Lain (boleh untuk kebun) |
+| NDVI | Indeks kehijauan vegetasi dari citra satelit; turun tajam saat lahan dibuka |
+| TRACES | Sistem informasi Komisi Eropa tempat geolokasi kebun diunggah |
 
 ## Masalah
 
@@ -39,8 +101,40 @@ hasil verifikasi lapangan. Paspor dipakai di empat titik:
 | **Pabrik / eksportir** | Melihat porsi TBS tertelusur, pengepul yang perlu diaudit, dan membuat paket data uji tuntas untuk importir |
 | **Petani & publik** | Membawa kartu QR (tanpa perlu ponsel); siapa pun bisa mengecek status paspor di `/cek/<kode>` |
 
-Paspor Kebun **bukan sertifikat ISPO/RSPO** (itu hanya boleh diterbitkan lembaga sertifikasi terakreditasi KAN/ASI).
+PasporKebun **bukan sertifikat ISPO/RSPO** (itu hanya boleh diterbitkan lembaga sertifikasi terakreditasi KAN/ASI).
 Paspor adalah bukti uji tuntas yang membuat sertifikasi kelompok dan pelaporan EUDR lebih murah.
+
+## Cara kerja: dari kebun sampai pengiriman
+
+**Status kebun** dihitung otomatis dari peta, per piksel di dalam batas kebun:
+
+| Status | Kapan |
+|---|---|
+| **Berisiko** | Lebih dari 5% kebun masuk kawasan hutan (peta resmi Kemenhut), **atau** paling sedikit 10% kebun adalah hutan pada 2020 menurut **dua** peta hutan (JRC dan hutan alam SBTN) dan tutupannya hilang setelah 2020. Bila peta kedua tidak terbaca, dipakai satu peta dan paspor mencatatnya |
+| **Perlu cek** | Bukti tidak cukup untuk menyimpulkan: dua peta hutan tidak sepakat, ada hutan 2020 tanpa kehilangan tutupan, atau peta belum terbaca. Kebun ini masuk prioritas kunjungan verifikator |
+| **Aman** | Bukan hutan pada 2020 dan tidak ada pembukaan setelahnya, atau pembukaan terjadi di lahan yang bukan hutan (peremajaan sawit) |
+
+Selama kedua peta hutan terbaca, satu peta saja tidak cukup untuk memvonis deforestasi, karena peta global bisa salah.
+Petani bisa mengajukan keberatan; yang memutuskan verifikator manusia dengan alasan tertulis. Rincian aturan: [docs/ALGORITMA.md](docs/ALGORITMA.md).
+
+**Siap EUDR** berarti kelima syarat ini terpenuhi (berlaku 12 bulan):
+
+1. **Lokasi dan batas**: poligon atau titik GPS, batas disaksikan tetangga atau ketua kelompok tani.
+2. **Legalitas lahan**: sertifikat, surat desa, atau pernyataan penguasaan fisik + 2 saksi; STDB sudah ada atau sedang
+   diurus; petani menyetujui pemakaian data; tidak ada sengketa.
+3. **Di luar kawasan hutan** menurut peta resmi.
+4. **Bebas deforestasi**: status satelit Aman.
+5. **Verifikasi lapangan**: tidak ada inspeksi yang tertunda atau gagal.
+
+**Keputusan di pengepul** (setiap pembelian TBS):
+
+| Keputusan | Kapan |
+|---|---|
+| **Ditahan** | Kebun Berisiko, tanaman belum 3 tahun, atau total jual 30 hari melebihi kapasitas kebun (potensi produksi PPKS menurut luas dan umur, dilonggarkan 15%) |
+| **Catatan** | Kebun masih Perlu cek, berat satu kali jual tidak wajar, jual 3 kali dalam 7 hari, atau paspor dipakai pengepul lain dalam 3 hari |
+| **Diterima** | Tidak ada tanda di atas |
+
+TBS yang ditahan tetap tercatat, tetapi tidak dihitung sebagai TBS tertelusur, dan pabrik menerima peringatannya.
 
 ## Dampak dan rencana realisasi
 
@@ -254,13 +348,16 @@ Akun demo hanya untuk penilaian. Matikan di produksi dengan `PK_DEMO_ACCOUNTS=0`
 
 **AI di dalam produk** (semua berjalan di CPU server sendiri, tanpa API AI pihak ketiga):
 
-| Komponen | Model / metode | Bagian produk | Akurasi |
+| Komponen | Model / metode | Bagian produk | Hasil uji |
 |---|---|---|---|
-| Penggambar batas kebun | Watershed berpenanda (OpenCV); opsional Segment Anything (Meta AI, ViT-B) | Pendaftaran kebun | IoU 0,93 (citra sintetis); literatur SAM lahan kecil IoU 0,71 |
-| Deteksi perubahan lahan 2018-kini | COLD-lite: regresi harmonik robust + konfirmasi 5 citra (implementasi sendiri, NumPy) | Bukti satelit, tahun tanam | F1 100%, uji ketahanan 99% (simulasi); literatur COLD F1 81,8% |
-| Keputusan risiko EUDR | Convergence of evidence (diadaptasi dari Whisp FAO) + pembeda peremajaan + cek kawasan hutan | Cap Aman / Perlu cek / Berisiko | 100% per skenario simulasi |
-| Penjaga pengepul | Model kapasitas PPKS + Isolation Forest (scikit-learn) dengan alasan z-score | Halaman pengepul, dasbor pabrik | Pencuci TBS di peringkat atas |
+| Penggambar batas kebun | Watershed berpenanda (OpenCV); opsional Segment Anything (Meta AI, ViT-B) | Pendaftaran kebun | IoU rata-rata 0,93 pada citra uji sintetis (10 adegan x 4 klik); literatur SAM lahan kecil IoU 0,71 |
+| Deteksi perubahan lahan 2018-kini | COLD-lite: regresi harmonik robust + konfirmasi 5 citra (implementasi sendiri, NumPy) | Bukti satelit, tahun tanam | F1 100% pada 600 deret simulasi berlabel, 99% pada uji ketahanan (derau, awan, 50% citra hilang); literatur COLD F1 81,8% pada data nyata |
+| Keputusan risiko EUDR | Convergence of evidence (diadaptasi dari Whisp FAO) + aturan dua peta hutan + pembeda peremajaan + cek kawasan hutan | Cap Aman / Perlu cek / Berisiko | Semua skenario simulasi benar; 6 dari 6 kebun uji di lokasi nyata sesuai harapan (Uji indikator peta) |
+| Penjaga pengepul | Model kapasitas PPKS + Isolation Forest (scikit-learn) dengan alasan z-score | Halaman pengepul, dasbor pabrik | Pengepul "pencuci TBS" pada data simulasi berada di peringkat teratas |
 | Pemilih sampel verifikasi | Pemeringkatan risiko + undian berbobot luas (rumus RSPO ISH) | Halaman verifikasi | – |
+
+Angka di atas berasal dari data uji buatan tim dan literatur, bukan pengukuran lapangan. Pilot akan memakai hasil inspeksi
+verifikator sebagai data rujukan untuk mengukur akurasi sesungguhnya.
 
 **Bagian yang sengaja bukan AI.** Status kawasan hutan dibaca dengan aturan pasti, bukan model: dari poligon peta resmi,
 atau, untuk layanan Kemenhut Juni 2026 yang hanya mengizinkan tampilan, dari warna gambar petanya (setiap fungsi kawasan punya
@@ -305,6 +402,20 @@ Commit yang dibantu Claude memuat baris `Co-Authored-By: Claude` di pesan commit
 - Berkas geolokasi diperiksa terhadap aturan format TRACES sebelum diekspor (6 desimal, tertutup, tanpa lubang atau sisi
   berpotongan, `ProducerCountry` ISO2); kebun yang akan ditolak sistem UE tidak ikut pengiriman (`services/traces.py`).
 
+## Keterbatasan yang kami ketahui
+
+- Di mode demo, deret NDVI per kebun adalah simulasi berlabel (paspor menuliskannya). Mode live (Sentinel-2) sudah ditulis,
+  tetapi belum diuji menyeluruh karena server satelit terblokir dari lingkungan pengembangan kami.
+- Peta hutan global bisa salah (galat komisi kelas hutan JRC sekitar 18%, terutama di kebun pohon). Karena itu dipakai dua
+  peta, dan kasus meragukan menjadi Perlu cek, bukan Berisiko.
+- Akurasi AI belum diukur dengan data lapangan (lihat Dokumentasi penggunaan AI).
+- Pengepul yang sama sekali tidak memindai QR tidak bisa dicegah aplikasi. Yang terlihat di dasbor pabrik adalah selisih
+  setoran dengan transaksi tertelusur, dan selisih itu menaikkan skor anomali pengepul.
+- Hapus data per petani, tarik persetujuan, dan penghapusan otomatis setelah masa simpan belum ada tombolnya; dilayani
+  manual oleh pengelola (rincian di [docs/DPIA.md](docs/DPIA.md)).
+- Versi ter-deploy memakai paket gratis Render: server tidur setelah 15 menit tanpa akses, dan data demo dibuat ulang
+  setiap server mulai.
+
 ## Pemetaan ke rubrik penilaian
 
 | Kriteria (bobot) | Bukti di aplikasi |
@@ -341,4 +452,5 @@ syarat bukti lahan dari Permentan 33/2025 (ISPO) dan pedoman EUDR C/2026/3896. D
 Leaflet-Geoman Free (MIT); qrcode (MIT); jsQR (Apache-2.0); lucide-react (ISC); FastAPI, SQLAlchemy, Pydantic, Uvicorn,
 python-dotenv (MIT/BSD); NumPy, Shapely, scikit-learn (BSD); OpenCV (Apache-2.0); Pillow (MIT-CMU); truststore (MIT);
 Segment Anything (Apache-2.0, opsional). **Huruf:** Instrument Sans, Saira Stencil One, Space Mono (SIL OFL 1.1, via Fontsource).
-Tidak ada template aplikasi jadi yang dipakai; desain antarmuka dibuat tim.
+Tidak ada template aplikasi jadi yang dipakai; desain antarmuka dibuat tim. Tangkapan layar di `docs/img/` diambil dari
+aplikasi ini (citra latar: Esri World Imagery).
