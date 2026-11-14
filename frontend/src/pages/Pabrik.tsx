@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Download, PackageCheck } from "lucide-react";
+import { ChevronDown, Download, PackageCheck } from "lucide-react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { dateLabel, dateTimeLabel, dec1, kg, monthLabel, num, pct } from "../lib/format";
-import type { Dashboard, Shipment } from "../lib/types";
+import type { CollectorRow, Dashboard, Shipment } from "../lib/types";
 import { Notice, Spinner } from "../components/ui";
 
 const BLOCKER_LABEL: Record<string, string> = {
@@ -182,6 +182,32 @@ function MonthlyBars({ data }: { data: Dashboard["monthly"] }) {
   );
 }
 
+type Reason = CollectorRow["ai_reasons"][number];
+
+/** Alasan anomali: satu alasan teratas terlihat, sisanya dibuka dengan klik. */
+function Reasons({ reasons }: { reasons: Reason[] }) {
+  const [open, setOpen] = useState(false);
+  if (!reasons.length) return <span className="faint">Pola wajar</span>;
+  const line = (r: Reason) => (
+    <div key={r.feature}>{r.label}: <strong>{r.value}</strong> <span className="faint">(umumnya {r.typical})</span></div>
+  );
+  const rest = reasons.slice(1);
+  return (
+    <div className="reasons">
+      {line(reasons[0])}
+      {rest.length > 0 && (
+        <>
+          {open && rest.map(line)}
+          <button type="button" className="reasons-more" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            {open ? "Sembunyikan" : `+${rest.length} alasan lain`}
+            <ChevronDown aria-hidden="true" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function Pabrik() {
   const { can } = useAuth();
   const [d, setD] = useState<Dashboard | null>(null);
@@ -293,9 +319,7 @@ export default function Pabrik() {
                     </div>
                   </td>
                   <td className="small">
-                    {c.ai_reasons.length
-                      ? c.ai_reasons.map((r) => <div key={r.feature}>{r.label}: <strong>{r.value}</strong> <span className="faint">(umumnya {r.typical})</span></div>)
-                      : <span className="faint">Pola wajar</span>}
+                    <Reasons reasons={c.ai_reasons} />
                   </td>
                 </tr>
               ))}
