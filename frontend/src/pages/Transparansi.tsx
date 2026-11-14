@@ -1,8 +1,27 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  BadgeCheck,
+  ChevronDown,
+  History,
+  Leaf,
+  Lock,
+  MapPinned,
+  MousePointerClick,
+  PencilRuler,
+  Satellite,
+  Scale,
+  ShieldCheck,
+  Stamp,
+  Truck,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import { api, ApiError } from "../lib/api";
 import { riskLabel } from "../lib/format";
 import type { IndicatorTest, Meta } from "../lib/types";
-import { Notice, Spinner } from "../components/ui";
+import { Spinner, Notice } from "../components/ui";
+
+/* ---------- Uji indikator peta (logika tidak diubah) ---------- */
 
 const INDICATORS: [string, string][] = [
   ["1", "Kehilangan tutupan pohon 2021–2025 (GFW)"],
@@ -37,19 +56,25 @@ function IndicatorTestPanel() {
       .finally(() => setBusy(false));
   };
   return (
-    <section className="panel panel-pad" style={{ marginTop: 16 }}>
+    <section className="panel panel-pad section-gap">
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
         <h2 style={{ fontSize: 18, marginBottom: 6 }}>Uji indikator peta</h2>
         <button className="btn btn-quiet" onClick={go} disabled={busy}>
           {busy ? <Spinner label="Membaca peta online" /> : "Jalankan uji sekarang"}
         </button>
       </div>
-      <p className="small muted" style={{ marginBottom: 10 }}>
+      <p className="small muted" style={{ marginBottom: 6 }}>
         Enam kebun uji dengan lokasi nyata, masing-masing sengaja melanggar (atau tidak melanggar) indikator tertentu. Uji membaca peta
-        online saat ini juga, lalu membandingkan indikator yang menyala dan keputusan akhir dengan harapan. Perhatikan kebun peremajaan:
-        indikator kehilangan tutupan menyala, tetapi keputusannya tetap aman karena lahannya bukan hutan pada 2020. Kebun Hasan menunjukkan
-        guna peta hutan kedua: peta JRC menyebutnya hutan, peta hutan alam SBTN tidak, sehingga hasilnya perlu cek lapangan, bukan langsung berisiko.
+        online saat ini juga, lalu membandingkan hasilnya dengan harapan.
       </p>
+      <details className="more">
+        <summary>Apa yang perlu diperhatikan?</summary>
+        <p className="small muted">
+          Kebun peremajaan: indikator kehilangan tutupan menyala, tetapi keputusannya tetap aman karena lahannya bukan hutan pada 2020.
+          Kebun Hasan menunjukkan guna peta hutan kedua: peta JRC menyebutnya hutan, peta hutan alam SBTN tidak, sehingga hasilnya perlu
+          cek lapangan, bukan langsung berisiko.
+        </p>
+      </details>
       {err && <Notice kind="danger">{err}</Notice>}
       {res && (
         <>
@@ -104,181 +129,438 @@ function IndicatorTestPanel() {
   );
 }
 
-const MODELS = [
+/* ---------- Ikon ---------- */
+
+const ICONS: Record<string, LucideIcon> = {
+  m1: MapPinned,
+  m2: Satellite,
+  m3: Scale,
+  m4: Truck,
+  c1: Users,
+  c2: BadgeCheck,
+  c3: Lock,
+  c4: ShieldCheck,
+  c5: Leaf,
+};
+const FLOW_ICONS: LucideIcon[] = [MousePointerClick, PencilRuler, History, Scale, Stamp];
+
+/** Pohon keputusan dengan warna pada hasil akhir (teks tidak berubah). */
+function Tree({ text }: { text: string }) {
+  const cls: Record<string, string> = { AMAN: "t-aman", "PERLU CEK": "t-cek", BERISIKO: "t-risiko" };
+  return (
+    <pre className="tree" aria-label="Pohon keputusan">
+      {text.split(/(BERISIKO|PERLU CEK|AMAN)/g).map((t, i) => (cls[t] ? <b key={i} className={cls[t]}>{t}</b> : t))}
+    </pre>
+  );
+}
+
+/* ---------- Komponen akordeon ---------- */
+
+function Acc({
+  id,
+  flash,
+  open,
+  onToggle,
+  title,
+  metric,
+  children,
+}: {
+  id: string;
+  flash?: boolean;
+  open: boolean;
+  onToggle: () => void;
+  title: string;
+  metric?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="acc" data-open={open} data-flash={flash || undefined}>
+      <h2 className="acc-h">
+        <button type="button" aria-expanded={open} aria-controls={`${id}-panel`} id={`${id}-btn`} onClick={onToggle}>
+          {ICONS[id] && <span className="acc-ic">{(() => { const I = ICONS[id]; return <I aria-hidden="true" />; })()}</span>}
+          <span className="acc-title">{title}</span>
+          {metric && <span className="acc-metric">{metric}</span>}
+          <ChevronDown className="acc-chev" aria-hidden="true" />
+        </button>
+      </h2>
+      {open && (
+        <div className="acc-body" id={`${id}-panel`} role="region" aria-labelledby={`${id}-btn`}>
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
+const hl = (k: string) => (k.startsWith("Akurasi") ? "hl-akurasi" : k === "Peran manusia" || k === "Prinsip" ? "hl-manusia" : undefined);
+
+function Rows({ rows }: { rows: [string, string][] }) {
+  return (
+    <dl className="rows">
+      {rows.map(([k, v]) => (
+        <div key={k} style={{ display: "contents" }}>
+          <dt className={hl(k)}>{k}</dt>
+          <dd className={hl(k)}>{v}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/* ---------- Isi: empat komponen AI ---------- */
+
+const DECISION_TREE = `Tutupan pohon hilang setelah 2020?
+├─ Tidak ──────────────────────────→ AMAN
+└─ Ya
+   └─ Lahan itu hutan pada 2020?
+      ├─ Tidak (sudah kebun) ───────→ AMAN (peremajaan)
+      └─ Ya
+         └─ Berapa peta yang menyebut hutan?
+            ├─ 2 peta sepakat, ≥10% luas kebun → BERISIKO
+            └─ Hanya 1 peta ──────────────────→ PERLU CEK
+
+Terpisah: kebun >5% masuk kawasan hutan (Kemenhut) → BERISIKO`;
+
+type Model = {
+  id: string;
+  name: string;
+  metric: string;
+  summary: string;
+  main: [string, string][];
+  detail: [string, string][];
+  tree?: boolean;
+};
+
+const MODELS: Model[] = [
   {
+    id: "m1",
     name: "AI penggambar batas kebun",
-    rows: [
-      ["Fungsinya", "Dari satu klik di tengah kebun, membuat draf garis batas dari citra satelit."],
-      ["Data", "Citra satelit resolusi sangat tinggi (Esri World Imagery). Hanya 9 petak citra di sekitar klik yang diunduh, lalu disimpan di cache."],
-      ["Algoritma", "Watershed berpenanda (OpenCV) setelah penghalusan mean-shift. Jika dipasang, memakai Segment Anything (SAM, Meta AI)."],
+    metric: "IoU 0,93 (uji sintetis)",
+    summary: "Satu klik di tengah kebun, AI membuat draf garis batas dari citra satelit. Petani yang meluruskan dan saksi yang menguatkan.",
+    main: [
       ["Akurasi", "Validasi kami pada citra sintetis: IoU rata-rata 0,93. Literatur: SAM tanpa pelatihan pada lahan petani kecil di India, IoU 0,71 dan F1 0,82."],
-      ["Batasannya", "Dua kebun bertetangga dengan umur dan perawatan sama bisa terlihat seperti satu kebun. Bayangan awan mengganggu."],
       ["Peran manusia", "Garis AI selalu draf. Petani menggeser titik yang meleset, lalu ketua kelompok tani atau tetangga menjadi saksi."],
     ],
-  },
-  {
-    name: "Pendeteksi perubahan lahan 5+ tahun (COLD-lite)",
-    rows: [
-      ["Fungsinya", "Membaca riwayat kehijauan (NDVI) kebun sejak 2018, menemukan kapan lahan dibuka, dan memperkirakan tahun tanam."],
-      ["Data", "Sentinel-2 L2A (10 m, tiap 5 hari) dari Microsoft Planetary Computer pada mode live. Pada mode demo, deret simulasi berlabel."],
-      ["Algoritma", "Regresi harmonik robust (tren + musim). Perubahan baru diakui jika 5 citra berturut-turut menyimpang, sehingga awan tunggal tidak dianggap pembukaan lahan. Diadaptasi dari CCDC/COLD."],
-      ["Akurasi", "Literatur (Landsat, 2025): COLD F1 81,8%, CCDC sekitar 76,5%, BFAST 70,6%; karena itu kami memilih pendekatan COLD. Validasi simulasi kami: F1 100%, uji ketahanan (derau 2,5x, separuh citra hilang) F1 99%, tahun tanam tepat ±1 tahun 98%."],
-      ["Batasannya", "NDVI saja sulit membedakan hutan dan sawit tua. Musim hujan berawan mengurangi jumlah citra."],
-      ["Peran manusia", "Hasil 'perlu cek' diteruskan ke verifikasi lapangan (foto bergeotag) atau citra resolusi lebih tinggi."],
+    detail: [
+      ["Data", "Citra satelit resolusi sangat tinggi (Esri World Imagery). Hanya 9 petak citra di sekitar klik yang diunduh, lalu disimpan di cache."],
+      ["Algoritma", "Watershed berpenanda (OpenCV) setelah penghalusan mean-shift. Jika dipasang, memakai Segment Anything (SAM, Meta AI)."],
+      ["Batasannya", "Dua kebun bertetangga dengan umur dan perawatan sama bisa terlihat seperti satu kebun. Bayangan awan mengganggu."],
     ],
   },
   {
+    id: "m2",
+    name: "Pendeteksi perubahan lahan 5+ tahun (COLD-lite)",
+    metric: "F1 81,8% (literatur COLD)",
+    summary: "AI membaca riwayat kehijauan (NDVI) kebun sejak 2018, menemukan kapan lahan dibuka, dan memperkirakan tahun tanam.",
+    main: [
+      ["Akurasi", "Literatur (Landsat, 2025): COLD F1 81,8%, CCDC sekitar 76,5%, BFAST 70,6%; karena itu kami memilih pendekatan COLD. Validasi simulasi kami: F1 100%, uji ketahanan (derau 2,5x, separuh citra hilang) F1 99%, tahun tanam tepat ±1 tahun 98%."],
+      ["Peran manusia", "Hasil 'perlu cek' diteruskan ke verifikasi lapangan (foto bergeotag) atau citra resolusi lebih tinggi."],
+    ],
+    detail: [
+      ["Data", "Sentinel-2 L2A (10 m, tiap 5 hari) dari Microsoft Planetary Computer pada mode live. Pada mode demo, deret simulasi berlabel."],
+      ["Algoritma", "Regresi harmonik robust (tren + musim). Perubahan baru diakui jika 5 citra berturut-turut menyimpang, sehingga awan tunggal tidak dianggap pembukaan lahan. Diadaptasi dari CCDC/COLD."],
+      ["Batasannya", "NDVI saja sulit membedakan hutan dan sawit tua. Musim hujan berawan mengurangi jumlah citra."],
+    ],
+  },
+  {
+    id: "m3",
     name: "Mesin keputusan multi-bukti",
-    rows: [
-      ["Fungsinya", "Menggabungkan beberapa sumber bukti menjadi status Aman, Perlu cek, atau Berisiko beserta alasannya."],
-      ["Data", "Dua peta hutan 2020: JRC GFC2020 (acuan UE, akurasi 91%) dan hutan alam SBTN Natural Lands Map (WRI/SBTN); kehilangan tutupan Hansen/GLAD, peringatan radar RADD (user's accuracy 97,6%), peta sawit Forest Data Partnership/Descals, peta Kawasan Hutan Kementerian Kehutanan, dan time series di atas."],
+    metric: "2 peta hutan harus sepakat",
+    summary: "AI menggabungkan beberapa peta dan data satelit menjadi status Aman, Perlu cek, atau Berisiko beserta alasannya. Berisiko hanya muncul bila dua peta hutan sepakat.",
+    tree: true,
+    main: [
+      ["Akurasi sumber", "Peta hutan JRC GFC2020 akurasi 91%; peringatan radar RADD user's accuracy 97,6%. Hasil gabungan diuji pada enam kebun di bagian 'Uji indikator peta'."],
+      ["Peran manusia", "Status dari komputer bukan vonis: petani bisa mengajukan keberatan, dan yang memutus adalah verifikator."],
+      ["Transparansi", "Aturannya terbuka di kode (evidence.py). Setiap paspor menampilkan bukti, sumber, dan tingkat keyakinan."],
+    ],
+    detail: [
+      ["Data", "Dua peta hutan 2020: JRC GFC2020 (acuan UE) dan hutan alam SBTN Natural Lands Map (WRI/SBTN); kehilangan tutupan Hansen/GLAD, peringatan radar RADD, peta sawit Forest Data Partnership/Descals, peta Kawasan Hutan Kementerian Kehutanan, dan time series komponen 2."],
       ["Cek kawasan otomatis", "Saat kebun digambar, aplikasi menanyakan poligon kawasan hutan di lokasi itu ke layanan peta resmi Kemenhut, membaca fungsinya (konservasi, hutan lindung, hutan produksi, APL), lalu menghitung persentase luas kebun di tiap fungsi. Layanan Kemenhut terbaru (revisi Juni 2026) hanya mengizinkan tampilan peta, jadi aplikasi membaca gambarnya: setiap fungsi kawasan punya warna tetap di legenda resmi (kuning = hutan produksi tetap, ungu = konservasi, putih = APL, dan seterusnya), lalu setiap piksel di bawah kebun dicocokkan ke warna itu. Ini aturan pasti, bukan model AI, karena warnanya ditetapkan oleh pemilik peta. Bila server Kemenhut tidak terjangkau, aplikasi otomatis memakai Peta Kawasan Hutan KLHK 2017 yang disediakan Global Forest Watch, dan paspor menyebut sumber mana yang dipakai. Hasilnya disimpan di cache agar tetap jalan saat offline. Kebun yang lebih dari 5% masuk kawasan hutan langsung berstatus Berisiko. Tidak ada batas kawasan yang digambar tangan."],
       ["Bukti deforestasi", "Lapisan 'Kehilangan tutupan pohon' di peta (Hansen/GLAD lewat Global Forest Watch) dibaca per piksel di dalam batas kebun, bersama peta hutan JRC 2020 yang dipakai Uni Eropa. Kehilangan tutupan pohon belum tentu deforestasi: peremajaan atau panen kebun juga tercatat. Karena itu kebun baru berstatus Berisiko bila tutupan hilang sesudah 2020 DAN lahannya masih hutan pada 2020; bila bukan hutan, statusnya Aman (peremajaan)."],
       ["Dua peta hutan", "Makalah resmi peta JRC (Bourgoin dkk., ESSD 2026) mencatat peta itu keliru menyebut 'hutan' pada sekitar 18% kasus, terutama di kebun pohon dan agroforestri seperti karet dan sawit tua, dan menyarankan peta itu dipasangkan dengan data lain. Maka setiap piksel yang hilang dicek ke peta kedua, kelas hutan alam SBTN Natural Lands Map (peta yang juga dipakai GFW Pro dan Koltiva). Berisiko hanya bila kedua peta sepakat piksel itu hutan di minimal 10% luas kebun. Bila hanya satu peta yang menyebut hutan, hasilnya Perlu cek dan kebun wajib masuk sampel inspeksi lapangan; tidak otomatis Aman karena hutan tanaman tetap terhitung hutan menurut EUDR. Bila peta kedua tidak terbaca, paspor mencatat bahwa keputusan memakai satu peta."],
       ["Algoritma", "Aturan 'convergence of evidence' dari Whisp (FAO), ditambah pembeda peremajaan dan deforestasi: lahan yang tahun 2020 sudah kebun sawit lalu dibuka lagi adalah peremajaan (mis. PSR), bukan deforestasi."],
-      ["Transparansi", "Aturannya terbuka di kode (evidence.py). Setiap paspor menampilkan bukti, sumber, dan tingkat keyakinan."],
       ["Batasannya", "Peta global kurang tajam untuk kebun di bawah 1 ha. Peta kawasan hutan berskala kecil dan bisa tertinggal dari SK pelepasan terbaru, jadi status 'masuk kawasan' adalah sinyal untuk diverifikasi (sertifikat, SK pelepasan), bukan vonis."],
     ],
   },
   {
+    id: "m4",
     name: "Penjaga titik pengepul",
-    rows: [
-      ["Fungsinya", "Menahan pembelian yang mustahil secara agronomi, dan mengurutkan pengepul yang paling layak diaudit."],
+    metric: "Urutan audit, bukan vonis",
+    summary: "AI menahan pembelian yang mustahil secara agronomi dan mengurutkan pengepul yang paling layak diaudit.",
+    main: [
+      ["Prinsip", "Batas kapasitas sengaja dilonggarkan 15% di atas potensi terbaik: lebih baik melewatkan sedikit kecurangan daripada menuduh petani jujur. Skor anomali bukan vonis, hanya urutan audit."],
+    ],
+    detail: [
       ["Data", "Luas kebun, umur tanaman, kurva potensi produksi PPKS, pola musim panen, dan transaksi 90 hari."],
       ["Algoritma", "Aturan kapasitas 30 hari dan rotasi panen, ditambah Isolation Forest (tanpa label kecurangan) untuk pola pengepul. Alasan dijelaskan dengan z-score per fitur."],
-      ["Prinsip", "Batas kapasitas sengaja dilonggarkan 15% di atas potensi terbaik: lebih baik melewatkan sedikit kecurangan daripada menuduh petani jujur. Skor anomali bukan vonis, hanya urutan audit."],
     ],
   },
 ];
 
-export default function Transparansi() {
-  const [meta, setMeta] = useState<Meta | null>(null);
-  useEffect(() => {
-    api.meta().then(setMeta).catch(() => setMeta(null));
-  }, []);
+/* ---------- Isi: konteks dan jaminan (di luar model AI) ---------- */
 
-  return (
-    <div className="page doc">
-      <div className="page-head">
-        <div>
-          <h1>Cara kerja AI</h1>
-          <p className="muted">Apa yang dikerjakan AI di PasporKebun, seberapa akurat, di mana batasnya, dan di mana manusia tetap memutuskan.</p>
-        </div>
-      </div>
-
-      {meta && (
-        <Notice kind={meta.satellite_mode === "live" ? "ok" : "info"}>
-          Mode data satelit:{" "}
-          <strong>
-            {meta.satellite_mode === "live"
-              ? "live (Sentinel-2 dan Hansen asli)"
-              : "demo: dua peta hutan 2020 (JRC dan SBTN) dan kehilangan tutupan (Hansen) dari peta nyata GFW, deret NDVI simulasi berlabel"}
-          </strong>
-          .
-          AI batas kebun: <strong>{meta.sam.available ? "Segment Anything" : "watershed bawaan"}</strong>
-          {meta.sam.available ? "" : ` (${meta.sam.reason})`}. Cek kawasan hutan:{" "}
-          <strong>
-            {!meta.kawasan || meta.kawasan.policy === "lokal"
-              ? "peta lokal saja"
-              : meta.kawasan.online === false
-                ? meta.kawasan.gfw?.enabled
-                  ? "peta Kemenhut tidak terjangkau, memakai cadangan Peta Kawasan Hutan KLHK 2017 (GFW)"
-                  : "peta Kemenhut tidak terjangkau, memakai cache/peta lokal"
-                : meta.kawasan.gfw?.enabled
-                  ? `otomatis ke peta Kemenhut${meta.kawasan.mode === "gambar" ? " (dibaca dari gambar peta)" : ""}, cadangan KLHK 2017 (GFW)`
-                  : "otomatis ke peta Kemenhut"}
-          </strong>
-          {meta.kawasan && meta.kawasan.cached_cells > 0 ? ` (${meta.kawasan.cached_cells} sel tersimpan)` : ""}. Batas EUDR: deforestasi
-          setelah 31 Des 2020.
-        </Notice>
-      )}
-
-      <section className="panel" style={{ marginTop: 16 }}>
-        {MODELS.map((m) => (
-          <article className="model" key={m.name}>
-            <h2 style={{ fontSize: 19 }}>{m.name}</h2>
-            <dl>
-              {m.rows.map(([k, v]) => (
-                <div key={k} style={{ display: "contents" }}>
-                  <dt>{k}</dt>
-                  <dd>{v}</dd>
-                </div>
-              ))}
-            </dl>
-          </article>
-        ))}
-      </section>
-
-      <IndicatorTestPanel />
-
-      <div className="grid-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        <section className="panel panel-pad">
-          <h2 style={{ fontSize: 18, marginBottom: 10 }}>Perlindungan data petani</h2>
-          <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 8 }}>
-            <li>NIK, foto KTP, dan foto wajah tidak disimpan. QR hanya berisi kode paspor.</li>
-            <li>Paspor baru terbit setelah petani menyetujui berbagi data, dan waktu persetujuannya tercatat.</li>
-            <li>Berkas EUDR dan paket ekspor tidak memuat nama petani (EUDR tidak memintanya); tampilan publik paspor menyamarkan nama.</li>
-            <li>Pabrik hanya melihat status bukti lahan, bukan salinan dokumen; dokumen tetap di koperasi.</li>
-            <li>Data tersimpan di server koperasi sendiri (SQLite), bukan di layanan pihak ketiga.</li>
-            <li>Pemindaian QR dengan kamera diproses di browser; gambar kamera tidak dikirim ke server.</li>
-            <li>
-              Status dari komputer bukan vonis: kebun baru disebut Berisiko bila dua peta hutan sepakat, petani bisa mengajukan keberatan,
-              dan yang memutus adalah verifikator. Penilaian dampak pelindungan data (UU PDP Pasal 34) dan kebijakan privasi, termasuk
-              kekurangan yang belum selesai, ada di <span className="num">docs/DPIA.md</span> dan{" "}
-              <span className="num">docs/KEBIJAKAN_PRIVASI.md</span>.
-            </li>
-          </ul>
-        </section>
-        <section className="panel panel-pad">
-          <h2 style={{ fontSize: 18, marginBottom: 10 }}>Hemat sumber daya</h2>
-          <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 8 }}>
-            <li>Semua model berjalan di CPU laptop biasa, tanpa GPU. Analisis satu kebun sekitar 25 ms.</li>
-            <li>Hanya piksel di dalam batas kebun yang diolah, bukan seluruh citra satelit.</li>
-            <li>Citra dan time series disimpan di cache, jadi setiap kebun cukup diunduh sekali.</li>
-            <li>Respons API dikompresi; grafik dibuat dengan SVG ringan tanpa pustaka grafik besar.</li>
-            <li>Huruf dan ikon dibundel di aplikasi, tanpa memanggil CDN saat dipakai.</li>
-          </ul>
-        </section>
-      </div>
-      <section className="panel panel-pad" style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 18, marginBottom: 6 }}>Kapan kebun berstatus "Siap EUDR"</h2>
-        <p className="small muted" style={{ marginBottom: 10 }}>
+const CONTEXT: { id: string; title: string; body: ReactNode }[] = [
+  {
+    id: "c1",
+    title: "Siapa memeriksa siapa",
+    body: (
+      <ul className="bul">
+        <li><strong>Petugas koperasi</strong> memetakan kebun bersama petani dan saksi, mencatat bukti lahan (sistem kendali internal).</li>
+        <li><strong>AI</strong> memeriksa riwayat satelit dan kawasan hutan, menjaga titik pengepul, dan memilih kebun yang paling perlu didatangi.</li>
+        <li><strong>Verifikator independen</strong> mengunjungi sampel kebun (akar(n) x 2,5 x 1,5, rumus RSPO) dan memutuskan keberatan dengan alasan tertulis.</li>
+        <li><strong>Pabrik</strong> menerima status, bukan salinan dokumen petani, lalu menyusun paket data untuk importir.</li>
+        <li><strong>Petani</strong> bisa mengajukan keberatan atas status kebunnya; keputusan gugur otomatis bila satelit menemukan bukti baru.</li>
+      </ul>
+    ),
+  },
+  {
+    id: "c2",
+    title: 'Kapan kebun berstatus "Siap EUDR"',
+    body: (
+      <>
+        <p className="small muted">
           Paspor Kebun adalah bukti uji tuntas, bukan sertifikat ISPO/RSPO (sertifikat itu hanya boleh diterbitkan lembaga sertifikasi
           terakreditasi KAN atau ASI). Kebun Siap EUDR bila kelima syarat terpenuhi, dan statusnya berlaku 12 bulan sejak cek satelit terakhir.
         </p>
-        <ol style={{ margin: 0, paddingLeft: 20, display: "grid", gap: 6 }}>
+        <ol className="bul">
           <li><strong>Lokasi:</strong> batas dipetakan dan disaksikan tetangga atau ketua kelompok tani. EUDR cukup meminta satu titik GPS untuk kebun di bawah 4 ha.</li>
           <li><strong>Lahan:</strong> ada bukti penguasaan (sertifikat, surat desa, atau pernyataan + 2 saksi), tidak ada sengketa, STDB sudah ada atau sedang diurus. Sertifikat tidak wajib: ISPO menerima surat penguasaan fisik.</li>
           <li><strong>Kawasan:</strong> di luar kawasan hutan menurut peta resmi Kementerian Kehutanan.</li>
           <li><strong>Hutan:</strong> satelit tidak menemukan pembukaan hutan setelah 31 Desember 2020.</li>
           <li><strong>Verifikasi:</strong> tidak sedang menunggu atau gagal inspeksi lapangan oleh verifikator independen.</li>
         </ol>
-      </section>
+      </>
+    ),
+  },
+  {
+    id: "c3",
+    title: "Perlindungan data petani",
+    body: (
+      <ul className="bul">
+        <li>NIK, foto KTP, dan foto wajah tidak disimpan. QR hanya berisi kode paspor.</li>
+        <li>Paspor baru terbit setelah petani menyetujui berbagi data, dan waktu persetujuannya tercatat.</li>
+        <li>Berkas EUDR dan paket ekspor tidak memuat nama petani (EUDR tidak memintanya); tampilan publik paspor menyamarkan nama.</li>
+        <li>Pabrik hanya melihat status bukti lahan, bukan salinan dokumen; dokumen tetap di koperasi.</li>
+        <li>Data tersimpan di server koperasi sendiri (SQLite), bukan di layanan pihak ketiga.</li>
+        <li>Pemindaian QR dengan kamera diproses di browser; gambar kamera tidak dikirim ke server.</li>
+        <li>
+          Penilaian dampak pelindungan data (UU PDP Pasal 34) dan kebijakan privasi, termasuk kekurangan yang belum selesai, ada di{" "}
+          <span className="num">docs/DPIA.md</span> dan <span className="num">docs/KEBIJAKAN_PRIVASI.md</span>.
+        </li>
+      </ul>
+    ),
+  },
+  {
+    id: "c4",
+    title: "Keamanan aplikasi",
+    body: (
+      <ul className="bul">
+        <li>Masuk per peran; setiap endpoint yang mengubah data menyebut peran yang boleh. Pengepul hanya bisa mencatat atas nama usahanya.</li>
+        <li>Kata sandi disimpan sebagai hash PBKDF2-SHA256 (210.000 iterasi); sesi di cookie HttpOnly + SameSite yang ditandatangani HMAC.</li>
+        <li>Perlindungan CSRF, Content-Security-Policy, dan header keamanan lain; batas laju untuk login, AI, dan unggahan.</li>
+        <li>Riwayat perubahan berantai hash: mengubah satu baris diam-diam langsung terdeteksi (halaman Verifikasi, tab Integritas).</li>
+        <li>Rahasia (kunci sesi) disimpan di .env, tidak di kode. Foto inspeksi divalidasi, diperkecil, dan metadata EXIF-nya dibuang.</li>
+      </ul>
+    ),
+  },
+  {
+    id: "c5",
+    title: "Hemat sumber daya",
+    body: (
+      <ul className="bul">
+        <li>Semua model berjalan di CPU laptop biasa, tanpa GPU. Analisis satu kebun sekitar 25 ms.</li>
+        <li>Hanya piksel di dalam batas kebun yang diolah, bukan seluruh citra satelit.</li>
+        <li>Citra dan time series disimpan di cache, jadi setiap kebun cukup diunduh sekali.</li>
+        <li>Respons API dikompresi; grafik dibuat dengan SVG ringan tanpa pustaka grafik besar.</li>
+        <li>Huruf dan ikon dibundel di aplikasi, tanpa memanggil CDN saat dipakai.</li>
+      </ul>
+    ),
+  },
+];
 
-      <div className="grid-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-        <section className="panel panel-pad">
-          <h2 style={{ fontSize: 18, marginBottom: 10 }}>Siapa memeriksa siapa</h2>
-          <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 8 }}>
-            <li><strong>Petugas koperasi</strong> memetakan kebun bersama petani dan saksi, mencatat bukti lahan (sistem kendali internal).</li>
-            <li><strong>AI</strong> memeriksa riwayat satelit dan kawasan hutan, menjaga titik pengepul, dan memilih kebun yang paling perlu didatangi.</li>
-            <li><strong>Verifikator independen</strong> mengunjungi sampel kebun (akar(n) x 2,5 x 1,5, rumus RSPO) dan memutuskan keberatan dengan alasan tertulis.</li>
-            <li><strong>Pabrik</strong> menerima status, bukan salinan dokumen petani, lalu menyusun paket data untuk importir.</li>
-            <li><strong>Petani</strong> bisa mengajukan keberatan atas status kebunnya; keputusan gugur otomatis bila satelit menemukan bukti baru.</li>
-          </ul>
-        </section>
-        <section className="panel panel-pad">
-          <h2 style={{ fontSize: 18, marginBottom: 10 }}>Keamanan aplikasi</h2>
-          <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 8 }}>
-            <li>Masuk per peran; setiap endpoint yang mengubah data menyebut peran yang boleh. Pengepul hanya bisa mencatat atas nama usahanya.</li>
-            <li>Kata sandi disimpan sebagai hash PBKDF2-SHA256 (210.000 iterasi); sesi di cookie HttpOnly + SameSite yang ditandatangani HMAC.</li>
-            <li>Perlindungan CSRF, Content-Security-Policy, dan header keamanan lain; batas laju untuk login, AI, dan unggahan.</li>
-            <li>Riwayat perubahan berantai hash: mengubah satu baris diam-diam langsung terdeteksi (halaman Verifikasi, tab Integritas).</li>
-            <li>Rahasia (kunci sesi) disimpan di .env, tidak di kode. Foto inspeksi divalidasi, diperkecil, dan metadata EXIF-nya dibuang.</li>
-          </ul>
-        </section>
+type FlowStep = {
+  label: string;
+  who: string;
+  text: string;
+  metric?: string;
+  links: { label: string; target: string }[];
+};
+
+const FLOW: FlowStep[] = [
+  {
+    label: "Klik titik di kebun",
+    who: "Petugas koperasi",
+    text: "Petugas koperasi mengeklik satu titik di tengah kebun pada peta satelit, bersama petani. Dari titik inilah AI mulai bekerja.",
+    links: [{ label: "Lihat penjelasan lengkap", target: "m1" }],
+  },
+  {
+    label: "Batas kebun digambar",
+    who: "AI, lalu manusia",
+    text: "AI membuat draf garis batas dari citra satelit. Petani menggeser titik yang meleset, lalu ketua kelompok tani atau tetangga menjadi saksi.",
+    metric: "IoU 0,93 (uji sintetis)",
+    links: [{ label: "Lihat penjelasan lengkap", target: "m1" }],
+  },
+  {
+    label: "Riwayat lahan dibaca",
+    who: "AI",
+    text: "AI membaca riwayat kehijauan (NDVI) kebun sejak 2018 untuk menemukan kapan lahan dibuka dan memperkirakan tahun tanam.",
+    metric: "F1 81,8% (literatur COLD)",
+    links: [{ label: "Lihat penjelasan lengkap", target: "m2" }],
+  },
+  {
+    label: "Risiko diputuskan",
+    who: "AI, lalu verifikator",
+    text: "AI menggabungkan peta hutan, kehilangan tutupan, dan kawasan hutan menjadi Aman, Perlu cek, atau Berisiko. Berisiko hanya muncul bila dua peta hutan sepakat. Verifikator yang memutus keberatan.",
+    metric: "2 peta hutan harus sepakat",
+    links: [{ label: "Lihat penjelasan lengkap", target: "m3" }],
+  },
+  {
+    label: "Paspor terbit",
+    who: "Sistem dan verifikator",
+    text: "Kebun berstatus Siap EUDR bila lima syarat terpenuhi: lokasi, lahan, kawasan, hutan, dan verifikasi. Statusnya berlaku 12 bulan sejak cek satelit terakhir.",
+    links: [{ label: "Lihat lima syarat", target: "c2" }],
+  },
+];
+
+const ALL_IDS = [...MODELS.map((m) => m.id), ...CONTEXT.map((c) => c.id)];
+
+/* ---------- Halaman ---------- */
+
+export default function Transparansi() {
+  const [meta, setMeta] = useState<Meta | null>(null);
+  const [open, setOpen] = useState<Record<string, boolean>>({ m1: true });
+  useEffect(() => {
+    api.meta().then(setMeta).catch(() => setMeta(null));
+  }, []);
+
+  const [step, setStep] = useState(0);
+  const [flash, setFlash] = useState<string | null>(null);
+  const goTo = (target: string) => {
+    setOpen((o) => ({ ...o, [target]: true }));
+    setFlash(target);
+    window.setTimeout(() => document.getElementById(`${target}-btn`)?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    window.setTimeout(() => setFlash(null), 1800);
+  };
+  const toggle = (id: string) => setOpen((o) => ({ ...o, [id]: !o[id] }));
+  const allOpen = ALL_IDS.every((id) => open[id]);
+  const setAll = (v: boolean) => setOpen(Object.fromEntries(ALL_IDS.map((id) => [id, v])));
+
+  const kawasanText = !meta?.kawasan || meta.kawasan.policy === "lokal"
+    ? "peta lokal"
+    : meta.kawasan.online === false
+      ? meta.kawasan.gfw?.enabled
+        ? "cadangan KLHK 2017 (Kemenhut tidak terjangkau)"
+        : "cache/peta lokal (Kemenhut tidak terjangkau)"
+      : meta.kawasan.gfw?.enabled
+        ? `otomatis ke Kemenhut${meta.kawasan.mode === "gambar" ? " (dibaca dari gambar peta)" : ""}, cadangan KLHK 2017`
+        : "otomatis ke Kemenhut";
+
+  return (
+    <div className="page doc">
+      <header className="hero-ai">
+        <h1>Cara kerja AI</h1>
+        <p>Apa yang dikerjakan AI di PasporKebun, seberapa akurat, di mana batasnya, dan di mana manusia tetap memutuskan.</p>
+      {meta && (
+        <>
+          <div className="chips-row" aria-label="Mode saat ini">
+            <span className={`pill ${meta.satellite_mode === "live" ? "pill-ok" : ""}`}>
+              Data satelit: {meta.satellite_mode === "live" ? "live (Sentinel-2 dan Hansen asli)" : "demo"}
+            </span>
+            <span className="pill" title={meta.sam.available ? undefined : meta.sam.reason}>
+              Batas kebun: {meta.sam.available ? "Segment Anything" : "watershed bawaan"}
+            </span>
+            <span className="pill">
+              Kawasan hutan: {kawasanText}
+              {meta.kawasan && meta.kawasan.cached_cells > 0 ? ` (${meta.kawasan.cached_cells} sel tersimpan)` : ""}
+            </span>
+            <span className="pill">Batas EUDR: deforestasi setelah 31 Des 2020</span>
+          </div>
+          {meta.satellite_mode !== "live" && (
+            <p className="small faint" style={{ marginTop: 6 }}>
+              Mode demo: dua peta hutan 2020 (JRC dan SBTN) dan kehilangan tutupan (Hansen) dari peta nyata GFW; deret NDVI simulasi berlabel.
+            </p>
+          )}
+        </>
+      )}
+      </header>
+
+      <ol className="flow" aria-label="Alur kerja AI">
+        {FLOW.map((f, i) => (
+          <li key={f.label}>
+            <button type="button" data-active={step === i} aria-pressed={step === i} onClick={() => setStep(i)}>
+              <span className="flow-ic">{(() => { const I = FLOW_ICONS[i]; return <I aria-hidden="true" />; })()}</span>
+              <span className="flow-no">Langkah {i + 1}</span>
+              {f.label}
+            </button>
+          </li>
+        ))}
+      </ol>
+      <div className="flow-detail" role="region" aria-live="polite" aria-label={`Langkah ${step + 1}: ${FLOW[step].label}`}>
+        <div className="fd-top">
+          <strong>Langkah {step + 1}: {FLOW[step].label}</strong>
+          <span className="pill">{FLOW[step].who}</span>
+          {FLOW[step].metric && <span className="acc-metric">{FLOW[step].metric}</span>}
+        </div>
+        <p>{FLOW[step].text}</p>
+        <div className="fd-actions">
+          {FLOW[step].links.map((l) => (
+            <button key={l.target} type="button" className="btn btn-quiet" onClick={() => goTo(l.target)}>{l.label}</button>
+          ))}
+        </div>
       </div>
 
-      <p className="small faint" style={{ marginTop: 16 }}>
+      <div className="split">
+        <div>
+          <strong>AI mengerjakan</strong>
+          <ul className="bul">
+            <li>Menggambar draf batas</li>
+            <li>Membaca riwayat satelit</li>
+            <li>Menghitung risiko dan alasannya</li>
+          </ul>
+        </div>
+        <div>
+          <strong>Manusia memutuskan</strong>
+          <ul className="bul">
+            <li>Petani dan saksi menyetujui batas</li>
+            <li>Verifikator memutus keberatan</li>
+            <li>Status komputer bukan vonis</li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="acc-bar">
+        <h2 className="acc-group">Empat komponen AI</h2>
+        <button className="btn btn-quiet" type="button" onClick={() => setAll(!allOpen)}>
+          {allOpen ? "Tutup semua" : "Buka semua"}
+        </button>
+      </div>
+
+      <div className="panel acc-list">
+        {MODELS.map((m) => (
+          <Acc key={m.id} id={m.id} flash={flash === m.id} title={m.name} metric={m.metric} open={!!open[m.id]} onToggle={() => toggle(m.id)}>
+            <p className="acc-sum">{m.summary}</p>
+            {m.tree && <Tree text={DECISION_TREE} />}
+            <Rows rows={m.main} />
+            <details className="more">
+              <summary>Detail teknis (data, algoritma, batasan)</summary>
+              <Rows rows={m.detail} />
+            </details>
+          </Acc>
+        ))}
+      </div>
+
+      <IndicatorTestPanel />
+
+      <h2 className="acc-group acc-group-solo">Konteks dan jaminan</h2>
+      <div className="panel acc-list">
+        {CONTEXT.map((c) => (
+          <Acc key={c.id} id={c.id} flash={flash === c.id} title={c.title} open={!!open[c.id]} onToggle={() => toggle(c.id)}>
+            {c.body}
+          </Acc>
+        ))}
+      </div>
+
+      <p className="small faint" style={{ marginTop: 36 }}>
         Rincian validasi: docs/VALIDASI.md. Rincian algoritma dan sumber: docs/ALGORITMA.md. Kode aplikasi ini dikembangkan tim dengan bantuan
         AI coding assistant (Claude, Anthropic); fitur AI di dalam produk tidak memakai layanan AI pihak ketiga dan berjalan di server sendiri.
       </p>
