@@ -9,7 +9,7 @@
 | Tim | **maaf pemula** |
 | Anggota | Brian Macrio Armando ([@brianmacrio](https://github.com/brianmacrio))<br>Dickent Affandy<br>Ekin Gunawan ([@EkinIOT](https://github.com/EkinIOT))<br>Jason Prayogo Chois's |
 | Aplikasi ter-deploy | **https://nyawit-production.up.railway.app** (Railway, dibangun dari `Dockerfile` repo ini) |
-| Video demo | _[isi tautan YouTube]_ |
+| Video demo | **https://youtu.be/KJ3Fwndqz6A** (YouTube) |
 
 **Isi:** [Ringkasan](#ringkasan) · [Coba dalam 5 menit](#coba-dalam-5-menit-untuk-juri) · [Istilah](#istilah) ·
 [Masalah](#masalah) · [Solusi](#solusi-dan-target-pengguna) · [Cara kerja](#cara-kerja-dari-kebun-sampai-pengiriman) ·
