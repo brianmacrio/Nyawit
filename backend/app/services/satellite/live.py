@@ -25,7 +25,7 @@ import numpy as np
 from ...config import TS_CACHE_DIR, TS_START
 
 STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
-HANSEN_VERSION = os.getenv("PK_HANSEN_VERSION", "GFC-2024-v1.12")
+HANSEN_VERSION = (os.getenv("PK_HANSEN_VERSION") or "").strip() or "GFC-2025-v1.13"  # kehilangan tutupan s.d. 2025
 HANSEN_URL = "https://storage.googleapis.com/earthenginepartners-hansen/{v}/Hansen_{v}_{layer}_{tile}.tif"
 SCL_OK = {4, 5, 6, 7, 11}  # vegetasi, non-vegetasi, air, tak terklasifikasi, salju
 

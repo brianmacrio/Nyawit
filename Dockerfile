@@ -12,7 +12,8 @@ RUN npm run build
 
 # --- tahap 2: backend Python (CPU saja, tanpa GPU) ---
 FROM python:3.11-slim
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PK_DATA_DIR=/app/backend/data
+# TZ=WIB-7: stempel waktu riwayat dan nota memakai jam WIB walau server berjalan di UTC (tanpa paket tzdata)
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PK_DATA_DIR=/app/backend/data TZ=WIB-7
 WORKDIR /app/backend
 COPY backend/requirements.txt .
 RUN pip install -r requirements.txt
